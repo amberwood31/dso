@@ -40,14 +40,14 @@
 #include <Eigen/SVD>
 #include <Eigen/Eigenvalues>
 #include "FullSystem/PixelSelector.h"
-#include "FullSystem/PixelSelector2.h"
+//#include "FullSystem/PixelSelector2.h"
 #include "FullSystem/ResidualProjections.h"
 #include "FullSystem/ImmaturePoint.h"
 
 #include "FullSystem/CoarseTracker.h"
 #include "FullSystem/CoarseInitializer.h"
 
-#include "OptimizationBackend/EnergyFunctional.h"
+//#include "OptimizationBackend/EnergyFunctional.h"
 #include "OptimizationBackend/EnergyFunctionalStructs.h"
 
 #include "IOWrapper/Output3DWrapper.h"
@@ -462,6 +462,8 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
 void FullSystem::traceNewCoarse(FrameHessian* fh)
 {
+    std::cout << "size of frameHessians: " << frameHessians.size() << std::endl;
+
 	boost::unique_lock<boost::mutex> lock(mapMutex);
 
 	int trace_total=0, trace_good=0, trace_oob=0, trace_out=0, trace_skip=0, trace_badcondition=0, trace_uninitialized=0;
@@ -524,7 +526,7 @@ void FullSystem::activatePointsMT_Reductor(
 
 void FullSystem::activatePointsMT()
 {
-
+// Looks like a bunch of heuristic parameters to control the currentMinActDist
 	if(ef->nPoints < setting_desiredPointDensity*0.66)
 		currentMinActDist -= 0.8;
 	if(ef->nPoints < setting_desiredPointDensity*0.8)
@@ -817,7 +819,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 	fh->shell = shell;
 	allFrameHistory.push_back(shell);
 
-
+    std::cout << "size of allFrameHistory: " << allFrameHistory.size() << std::endl;
 	// =========================== make Images / derivatives etc. =========================
 	fh->ab_exposure = image->exposure_time;
     fh->makeImages(image->image, &Hcalib);
@@ -1071,13 +1073,13 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 	int numFwdResAdde=0;
 	for(FrameHessian* fh1 : frameHessians)		// go through all active frames
 	{
-		if(fh1 == fh) continue;
+		if(fh1 == fh) continue; // skip itself
 		for(PointHessian* ph : fh1->pointHessians)
 		{
-			PointFrameResidual* r = new PointFrameResidual(ph, fh1, fh);
+			PointFrameResidual* r = new PointFrameResidual(ph, fh1, fh); // construct a new PointFrameResidual
 			r->setState(ResState::IN);
-			ph->residuals.push_back(r);
-			ef->insertResidual(r);
+			ph->residuals.push_back(r); // insert PointFrameResidual into PointHessian
+			ef->insertResidual(r); // this links PointFrameResidual and ef
 			ph->lastResiduals[1] = ph->lastResiduals[0];
 			ph->lastResiduals[0] = std::pair<PointFrameResidual*, ResState>(r, ResState::IN);
 			numFwdResAdde+=1;
@@ -1096,7 +1098,9 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 	// =========================== OPTIMIZE ALL =========================
 
+	// set the energy threshold of this specific frame to be similar with the last frame
 	fh->frameEnergyTH = frameHessians.back()->frameEnergyTH;
+
 	float rmse = optimize(setting_maxOptIterations);
 
 

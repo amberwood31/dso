@@ -70,13 +70,14 @@ void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 
 	int flagged = 0;
 	// marginalize all frames that have not enough points.
+	// flag the frames, not actually marginalize here
 	for(int i=0;i<(int)frameHessians.size();i++)
 	{
 		FrameHessian* fh = frameHessians[i];
 		int in = fh->pointHessians.size() + fh->immaturePoints.size();
 		int out = fh->pointHessiansMarginalized.size() + fh->pointHessiansOut.size();
 
-
+        // exposure transformation vector
 		Vec2 refToFh=AffLight::fromToVecExposure(frameHessians.back()->ab_exposure, fh->ab_exposure,
 				frameHessians.back()->aff_g2l(), fh->aff_g2l());
 
@@ -104,7 +105,7 @@ void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 		}
 	}
 
-	// marginalize one.
+	// marginalize one that has the lowest dist score.
 	if((int)frameHessians.size()-flagged >= setting_maxFrames)
 	{
 		double smallestScore = 1;

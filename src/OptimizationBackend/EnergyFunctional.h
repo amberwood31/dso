@@ -104,7 +104,7 @@ public:
 	int resInA, resInL, resInM;
 	MatXX lastHS;
 	VecX lastbS;
-	VecX lastX;
+	VecX lastX; // this saves results from previous solve
 	std::vector<VecX> lastNullspaces_forLogging;
 	std::vector<VecX> lastNullspaces_pose;
 	std::vector<VecX> lastNullspaces_scale;

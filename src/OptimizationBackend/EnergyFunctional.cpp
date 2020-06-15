@@ -418,7 +418,7 @@ EFResidual* EnergyFunctional::insertResidual(PointFrameResidual* r)
 {
 	EFResidual* efr = new EFResidual(r, r->point->efPoint, r->host->efFrame, r->target->efFrame);
 	efr->idxInAll = r->point->efPoint->residualsAll.size();
-	r->point->efPoint->residualsAll.push_back(efr);
+	r->point->efPoint->residualsAll.push_back(efr); // append this one residual to the point_residual it corresponds
 
     connectivityMap[(((uint64_t)efr->host->frameID) << 32) + ((uint64_t)efr->target->frameID)][0]++;
 

@@ -409,6 +409,9 @@ float FullSystem::optimize(int mnumOptIts)
 {
 
 	if(frameHessians.size() < 2) return 0;
+
+	// increase the number of iterations according
+	// if there are less active frames, can afford to do more iterations
 	if(frameHessians.size() < 3) mnumOptIts = 20;
 	if(frameHessians.size() < 4) mnumOptIts = 15;
 

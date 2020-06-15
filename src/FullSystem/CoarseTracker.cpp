@@ -870,7 +870,7 @@ void CoarseDistanceMap::makeDistanceMap(
 		std::vector<FrameHessian*> frameHessians,
 		FrameHessian* frame)
 {
-	int w1 = w[1];
+	int w1 = w[1]; //So only make distance map for level 1 image?
 	int h1 = h[1];
 	int wh1 = w1*h1;
 	for(int i=0;i<wh1;i++)
@@ -920,8 +920,16 @@ void CoarseDistanceMap::growDistBFS(int bfsNum)
 	int w1 = w[1], h1 = h[1];
 	for(int k=1;k<40;k++)
 	{
-		int bfsNum2 = bfsNum;
-		std::swap<Eigen::Vector2i*>(bfsList1,bfsList2);
+		int bfsNum2 = bfsNum; // number of pixels of interest
+
+		//At 1st iteration, bfsList1 stored all pixel of interests, bfsList2 has nothing
+		std::swap<Eigen::Vector2i*>(bfsList1,bfsList2); //
+		//Now bfsList2 holds all pixel of interests, bfsList1 is empty
+
+		//At 2nd iteration, after swapping
+		//bfsList2 store all the exploration horizon from previous iteration,
+		//and bfsList1 store all pixel of interests
+
 		bfsNum=0;
 
 		if(k%2==0)
@@ -933,6 +941,8 @@ void CoarseDistanceMap::growDistBFS(int bfsNum)
 				if(x==0 || y== 0 || x==w1-1 || y==h1-1) continue;
 				int idx = x + y * w1;
 
+                //2nd iteration, All 4 sides of the pixel of interest get a distance value of 2
+                //bfsList1 store the current "exploration" horizon
 				if(fwdWarpedIDDistFinal[idx+1] > k)
 				{
 					fwdWarpedIDDistFinal[idx+1] = k;
@@ -964,6 +974,8 @@ void CoarseDistanceMap::growDistBFS(int bfsNum)
 				if(x==0 || y== 0 || x==w1-1 || y==h1-1) continue;
 				int idx = x + y * w1;
 
+				//1st iteration, All 4 sides of the pixel of interest get a distance value of 1
+				//bfsList1 store the current "exploration" horizon
 				if(fwdWarpedIDDistFinal[idx+1] > k)
 				{
 					fwdWarpedIDDistFinal[idx+1] = k;

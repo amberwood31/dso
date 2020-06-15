@@ -336,10 +336,10 @@ struct CalibHessian
     inline float& fyl() {return value_scaledf[1];}
     inline float& cxl() {return value_scaledf[2];}
     inline float& cyl() {return value_scaledf[3];}
-    inline float& fxli() {return value_scaledi[0];}
-    inline float& fyli() {return value_scaledi[1];}
-    inline float& cxli() {return value_scaledi[2];}
-    inline float& cyli() {return value_scaledi[3];}
+    inline float& fxli() {return value_scaledi[0];} // value_scaledi[0] = 1 / value_scaledf[0]
+    inline float& fyli() {return value_scaledi[1];} // value_scaledi[1] = 1 / value_scaledf[1]
+    inline float& cxli() {return value_scaledi[2];} // value_scaledi[2] = value_scaledf[2] / value_scaledf[0]
+    inline float& cyli() {return value_scaledi[3];} // value_scaledi[3] = value_scaledf[3] / value_scaledf[1]
 
 
 

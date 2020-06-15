@@ -70,7 +70,7 @@ EIGEN_STRONG_INLINE bool projectPoint(
 	KliP = Vec3f(
 			(u_pt+dx-HCalib->cxl())*HCalib->fxli(),
 			(v_pt+dy-HCalib->cyl())*HCalib->fyli(),
-			1);
+			1); // project the pixel point into 3D point coordinates in camera frame, with unit depth
 
 	Vec3f ptp = R * KliP + t*idepth;
 	drescale = 1.0f/ptp[2];
@@ -78,10 +78,10 @@ EIGEN_STRONG_INLINE bool projectPoint(
 
 	if(!(drescale>0)) return false;
 
-	u = ptp[0] * drescale;
-	v = ptp[1] * drescale;
-	Ku = u*HCalib->fxl() + HCalib->cxl();
-	Kv = v*HCalib->fyl() + HCalib->cyl();
+	u = ptp[0] * drescale; // x coordinate / z coordinate of a 3D point in target frame
+	v = ptp[1] * drescale; // y coordinate / z coordinate of a 3D point in target frame
+	Ku = u*HCalib->fxl() + HCalib->cxl(); // K * u, projected pixel point: coordinate x
+	Kv = v*HCalib->fyl() + HCalib->cyl(); // K * v, projected pixel point: coordinate y
 
 	return Ku>1.1f && Kv>1.1f && Ku<wM3G && Kv<hM3G;
 }
