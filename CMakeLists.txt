@@ -11,7 +11,7 @@ set(BUILD_TYPE Release)
 set(EXECUTABLE_OUTPUT_PATH bin)
 set(LIBRARY_OUTPUT_PATH lib)
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
-
+message(STATUS "SSE_FLAGS: ${SSE_FLAGS}")
 # required libraries
 find_package(SuiteParse REQUIRED)
 find_package(Eigen3 REQUIRED)
@@ -22,14 +22,24 @@ find_package(LibZip QUIET)
 find_package(Pangolin 0.2 QUIET)
 find_package(OpenCV QUIET)
 
+
 # flags
 add_definitions("-DENABLE_SSE")
+
+# to check whether the definitions are added
+get_directory_property(MYDEF COMPILE_DEFINITIONS)
+MESSAGE(STATUS "COMPILE DEF includes: ${MYDEF}")
+
+get_directory_property(MYOPTION COMPILE_OPTIONS)
+MESSAGE(STATUS "COMPILE OPTIONS include: ${MYOPTION}")
+
+# -fopt-info-vec-all enable verbal outputs about autovectorization
 set(CMAKE_CXX_FLAGS
-   "${SSE_FLAGS} -O3 -g -std=c++0x -march=native"
+   "${SSE_FLAGS} -O3 -g -std=c++0x -march=native -fopt-info-vec-all"
 #   "${SSE_FLAGS} -O3 -g -std=c++0x -fno-omit-frame-pointer"
 ) # this O3 optimization makes quite some variables not examinable during debug
 #set(CMAKE_CXX_FLAGS_DEBUG "${SSE_FLAGS} -O0 -g -std=c++0x -march=native") # this slows down runtime tooo much
-
+message(STATUS "SSE_FLAGS: ${SSE_FLAGS}")
 if (MSVC)
      set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
 endif (MSVC)
@@ -115,6 +125,7 @@ add_library(dso ${dso_SOURCE_FILES} ${dso_opencv_SOURCE_FILES} ${dso_pangolin_SO
 
 #set_property( TARGET dso APPEND_STRING PROPERTY COMPILE_FLAGS -Wall )
 
+MESSAGE( STATUS "CMAKE_CXX_FLAGS: " ${CMAKE_CXX_FLAGS} )
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin") # OSX
     set(BOOST_THREAD_LIBRARY boost_thread-mt)
