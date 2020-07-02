@@ -47,6 +47,7 @@
 #include "FullSystem/CoarseTracker.h"
 #include "FullSystem/CoarseInitializer.h"
 
+#include "FullSystem/PlaneInitializer.h"
 //#include "OptimizationBackend/EnergyFunctional.h"
 #include "OptimizationBackend/EnergyFunctionalStructs.h"
 
@@ -136,6 +137,8 @@ FullSystem::FullSystem()
 	coarseTracker = new CoarseTracker(wG[0], hG[0]);
 	coarseTracker_forNewKF = new CoarseTracker(wG[0], hG[0]);
 	coarseInitializer = new CoarseInitializer(wG[0], hG[0]);
+	planeInitializer = new PlaneInitializer(wG[0], hG[0]);
+
 	pixelSelector = new PixelSelector(wG[0], hG[0]);
 
 	statistics_lastNumOptIts=0;
@@ -834,6 +837,13 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 		{
 
 			coarseInitializer->setFirst(&Hcalib, fh);
+
+			{   // run planeNet here
+			    // should consider make this another thread //todo
+                if (planeInitializer->detectPlane(image->image))
+                    std::cout<< "planeNet successfully done" << std::endl;
+
+            }
 		}
 		else if(coarseInitializer->trackFrame(fh, outputWrapper))	// if SNAPPED
 		{
@@ -852,6 +862,8 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 	}
 	else	// do front-end operation.
 	{
+
+	    std::cout << "number of frames: " << frameHessians.size() << std::endl;
 		// =========================== SWAP tracking reference?. =========================
 		if(coarseTracker_forNewKF->refFrameID > coarseTracker->refFrameID)
 		{
@@ -1220,6 +1232,11 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 	firstFrame->pointHessiansMarginalized.reserve(wG[0]*hG[0]*0.2f);
 	firstFrame->pointHessiansOut.reserve(wG[0]*hG[0]*0.2f);
 
+    // at least two points would make a proper plane
+    // max N_planes is half max N_points
+    firstFrame->planeHessians.reserve(wG[0]*hG[0]*0.1f);
+    firstFrame->planeHessiansMarginalized.reserve(wG[0]*hG[0]*0.1f);
+    firstFrame->planeHessiansOut.reserve(wG[0]*hG[0]*0.1f);
 
 	float sumID=1e-5, numID=1e-5;
 	for(int i=0;i<coarseInitializer->numPoints[0];i++)
@@ -1259,6 +1276,17 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 		firstFrame->pointHessians.push_back(ph);
 		ef->insertPoint(ph);
 	}
+
+	for (int i=0;i<planeInitializer->numPlanes;i++)
+    {
+	    Plane* plane = planeInitializer->planes+i;
+
+        PlaneHessian* plh = new PlaneHessian(plane, &Hcalib);
+
+        firstFrame->planeHessians.push_back(plh);
+        ef->insertPlane(plh);
+
+    }
 
 
 

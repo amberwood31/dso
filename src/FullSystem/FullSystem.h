@@ -55,6 +55,7 @@ class CoarseTracker;
 struct FrameHessian;
 struct PointHessian;
 class CoarseInitializer;
+class PlaneInitializer;
 struct ImmaturePointTemporaryResidual;
 class ImageAndExposure;
 class CoarseDistanceMap;
@@ -255,6 +256,7 @@ private:
 	boost::mutex trackMutex;
 	std::vector<FrameShell*> allFrameHistory;
 	CoarseInitializer* coarseInitializer;
+	PlaneInitializer* planeInitializer;
 	Vec5 lastCoarseRMSE;
 
 
@@ -266,6 +268,7 @@ private:
 	IndexThreadReduce<Vec10> treadReduce;
 
 	float* selectionMap;
+	float* semanticMap;
 	PixelSelector* pixelSelector;
 	CoarseDistanceMap* coarseDistanceMap;
 

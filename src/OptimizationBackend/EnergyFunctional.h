@@ -39,11 +39,13 @@ class PointFrameResidual;
 class CalibHessian;
 class FrameHessian;
 class PointHessian;
+class PlaneHessian;
 
 
 class EFResidual;
 class EFPoint;
 class EFFrame;
+class EFPlane;
 class EnergyFunctional;
 class AccumulatedTopHessian;
 class AccumulatedTopHessianSSE;
@@ -76,6 +78,8 @@ public:
 	EFFrame* insertFrame(FrameHessian* fh, CalibHessian* Hcalib);
 	EFPoint* insertPoint(PointHessian* ph);
 
+	EFPlane* insertPlane(PlaneHessian* plh);
+
 	void dropResidual(EFResidual* r);
 	void marginalizeFrame(EFFrame* fh);
 	void removePoint(EFPoint* ph);
@@ -96,7 +100,7 @@ public:
 	void setAdjointsF(CalibHessian* Hcalib);
 
 	std::vector<EFFrame*> frames;
-	int nPoints, nFrames, nResiduals;
+	int nPoints, nFrames, nResiduals, nPlanes;
 
 	MatXX HM;
 	VecX bM;

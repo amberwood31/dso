@@ -303,7 +303,8 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 			sqrtf(sumB) < 0.00005*setting_thOptIterations &&
 			sqrtf(sumR) < 0.00005*setting_thOptIterations &&
 			sqrtf(sumT)*sumNID < 0.00005*setting_thOptIterations;
-//
+//  setting_thOptIterations: factor on break threshold for GN iteration (larger = break earlier)
+
 //	printf("mean steps: %f %f %f!\n",
 //			meanStepC, meanStepP, meanStepD);
 }

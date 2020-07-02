@@ -154,6 +154,8 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 		d_xi_y[3] = -(1+v*v)*HCalib->fyl();
 		d_xi_y[4] = u*v*HCalib->fyl();
 		d_xi_y[5] = u*HCalib->fyl();
+
+
 	}
 
 
@@ -169,8 +171,26 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 
 	}
 
+    {
+        // plane related //todo: This is very important and error prone. Review as much as possible
+        if ((point->semantic_flag != 0.0f) && (point->semantic_flag != 0.5f)) {
+            // semantic_flag = 0.0: planeNet not finished
+            // semantic_flag = 0.5: planeNet finished, not on a plane
+
+            Vec4f m = point->host->planeHessians.at(int(point->semantic_flag)-1)->m_zero;
+
+            J->JddM[0] = (point->u-HCalib->cxl())*HCalib->fxli()/m[3]; //
+            J->JddM[1] = (point->v-HCalib->cyl())*HCalib->fyli()/m[3]; //
+            J->JddM[2] = 1/m[3] ; //
+            J->JddM[3] = -((point->u-HCalib->cxl())*m[0]*HCalib->fyl()
+                           + (point->v-HCalib->cyl())*m[1]*HCalib->fxl()
+                           + HCalib->fxl()*HCalib->fyl()*m[2])
+                         *HCalib->fxli()*HCalib->fyli()/(m[3]*m[3]) ; //
 
 
+        }
+
+    }
 
 
 
@@ -256,6 +276,7 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 	J->Jab2(0,1) = JabJab_01;
 	J->Jab2(1,0) = JabJab_01;
 	J->Jab2(1,1) = JabJab_11;
+
 
 	state_NewEnergyWithOutlier = energyLeft;
 

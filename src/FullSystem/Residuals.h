@@ -37,6 +37,7 @@
 namespace dso
 {
 class PointHessian;
+class PlaneHessian;
 class FrameHessian;
 class CalibHessian;
 

@@ -37,6 +37,7 @@ class PointFrameResidual;
 class CalibHessian;
 class FrameHessian;
 class PointHessian;
+class PlaneHessian;
 
 class EFResidual;
 class EFPoint;
@@ -138,6 +139,34 @@ public:
 	EFPointStatus stateFlag;
 };
 
+enum EFPlaneStatus {PLS_GOOD=0, PLS_MARGINALIZE, PLS_DROP};
+
+class EFPlane
+{
+public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+    EFPlane(PlaneHessian* d, EFFrame* host_) : data(d), host(host_)
+    {
+        takeData();
+        stateFlag = EFPlaneStatus::PLS_GOOD;
+
+    }
+
+    void takeData();
+    PlaneHessian* data;
+    EFFrame* host;
+    EFPlaneStatus stateFlag;
+
+    // constant info (never changes in-between).
+    int idxInPlanes; // what does this do? // todo
+
+    // contains all residuals
+    std::vector<EFResidual*> residualsAll;
+
+
+
+};
+
 
 
 class EFFrame
@@ -158,6 +187,7 @@ public:
 
 
 	std::vector<EFPoint*> points;
+	std::vector<EFPlane*> planes;
 	FrameHessian* data;
 	int idx;	// idx in frames.
 

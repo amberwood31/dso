@@ -52,11 +52,11 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 
 	for(EFResidual* r : p->residualsAll)
 	{
-		if(mode==0)
+		if(mode==0) //accumulate active points, therefore linearized ones are ignored
 		{
 			if(r->isLinearized || !r->isActive()) continue;
 		}
-		if(mode==1)
+		if(mode==1) // accumulate linearized points, therefore not linearized one
 		{
 			if(!r->isLinearized || !r->isActive()) continue;
 		}
@@ -68,7 +68,7 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 
 
 		RawResidualJacobian* rJ = r->J;
-		int htIDX = r->hostIDX + r->targetIDX*nframes[tid];
+		int htIDX = r->hostIDX + r->targetIDX*nframes[tid]; // compute the host-target pair ID
 		Mat18f dp = ef->adHTdeltaF[htIDX];
 
 
@@ -111,7 +111,19 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 			rr += resApprox[i]*resApprox[i];
 		}
 
+        // acc is an array of size [n_threads], htIDX is host-target pair index
 
+        //  the two rows of d[x,y]/d[C].
+        //	VecCf Jpdc[2];			// 2x4
+
+        // 	the two rows of d[x,y]/d pose increment
+        //	Vec6f Jpdxi[2];			// 2x6
+
+        //  squared Jacobian of photometric residual with respect to pixel coordinates
+        //  Mat22f JIdx2;				// 2x2
+
+
+        // first compute the squared of gradient of Residual v.s. CAMERA + POSE (dimension: 10)
 		acc[tid][htIDX].update(
 				rJ->Jpdc[0].data(), rJ->Jpdxi[0].data(),
 				rJ->Jpdc[1].data(), rJ->Jpdxi[1].data(),
@@ -248,27 +260,26 @@ void AccumulatedTopHessianSSE::stitchDoubleInternal(
 
 
 	for(int k=min;k<max;k++)
-	{
-		int h = k%nframes[0];
-		int t = k/nframes[0];
+	{                                                       // Matrix of size nframes x nframes, =4 as below
+		int h = k%nframes[0];                               //    +   +   +   +
+		int t = k/nframes[0];                               //    +   +   +   +
+		int hIdx = CPARS+h*8;                               //    +   +   +   +
+		int tIdx = CPARS+t*8;                               //    +   +   +   +
+		int aidx = h+nframes[0]*t;                          //  h, column index: t, row index
+                                                            //  aidx, element index after flattening the matrix,
+		assert(aidx == k);                                  //        going row after row
 
-		int hIdx = CPARS+h*8;
-		int tIdx = CPARS+t*8;
-		int aidx = h+nframes[0]*t;
+		MatPCPC accH = MatPCPC::Zero();                    // this is a 13 x 13 matrix since macro CPARS is 4
 
-		assert(aidx == k);
-
-		MatPCPC accH = MatPCPC::Zero();
-
-		for(int tid2=0;tid2 < toAggregate;tid2++)
+		for(int tid2=0;tid2 < toAggregate;tid2++)            // only run this loop once if single-threaded
 		{
-			acc[tid2][aidx].finish();
+			acc[tid2][aidx].finish();                        // unload SSE accumulation result into one block
 			if(acc[tid2][aidx].num==0) continue;
 			accH += acc[tid2][aidx].H.cast<double>();
 		}
 
 		H[tid].block<8,8>(hIdx, hIdx).noalias() += EF->adHost[aidx] * accH.block<8,8>(CPARS,CPARS) * EF->adHost[aidx].transpose();
-
+        // why the block starts from (hIdx, hIdx), which are (4, 4) corresponding to camera intrinsics?
 		H[tid].block<8,8>(tIdx, tIdx).noalias() += EF->adTarget[aidx] * accH.block<8,8>(CPARS,CPARS) * EF->adTarget[aidx].transpose();
 
 		H[tid].block<8,8>(hIdx, tIdx).noalias() += EF->adHost[aidx] * accH.block<8,8>(CPARS,CPARS) * EF->adTarget[aidx].transpose();

@@ -751,6 +751,13 @@ inline void finish()
 /*
  * same as other method, just that x/y are composed of two parts, the first 4 elements are in x4/y4, the last 6 in x6/y6.
  */
+// x4: 1st row of gradient of pixel coordinates v.s. camera intrinsics
+// x6: 1st row of gradient of pixel coordinates v.s. pose increment
+// y4: 2nd row of gradient of pixel coordinates v.s. camera intrinsics
+// y6: 2nd row of gradient of pixel coordinates v.s. pose increment
+// a:  row 1, column 1     of squared Jacobian of photometric residual v.s. pixel coordi
+// b:  row 1, column 2     of squared Jacobian of photometric residual v.s. pixel coordi
+// c:  row 2, column 2     of squared Jacobian of photometric residual v.s. pixel coordi
   inline void update(
 		  const float* const x4,
 		  const float* const x6,
@@ -760,6 +767,8 @@ inline void finish()
 		  const float b,
 		  const float c)
   {
+      // add onto the up triangle matrix, the size of which is 10 x 10,
+      // 10 being 4, dimension of camera intrinsics, +, 6, dimension of pose increment
 
 	  Data[0] += a*x4[0]*x4[0] + c*y4[0]*y4[0] +  b*(x4[0]*y4[0] + y4[0]*x4[0]);
 	  Data[1] += a*x4[1]*x4[0] + c*y4[1]*y4[0] +  b*(x4[1]*y4[0] + y4[1]*x4[0]);
@@ -846,6 +855,11 @@ inline void finish()
 	  shiftUp(false);
   }
 
+// this is 10x2 matrix multipled by a 2x3 matrix
+// 10x2 matrix is gradient of pixel coordinates v.s. camera intrinsics concatenated with pose increment
+// 2x3 matrix is Jab multipled by gradient of residual v.s. pixel coodinates (2x2), concacated with
+// resApprox multiplied by gradient of residual v.s. pixel coodinates (2x1)
+// is this J^T * r? What is Jab?
 
   inline void updateTopRight(
 		  const float* const x4,
@@ -897,6 +911,12 @@ inline void finish()
 	  TopRight_Data[29] += x6[5]*TR02 + y6[5]*TR12;
 
   }
+
+  // a00: row 1, column 1 of squared Jab
+  // a01, row 1, column 2 of squared Jab
+  // a02, 1st element of Jab^T * r
+  // a11, row 2, column 2 of squared Jab
+  // a12, 2nd element of Jab^T * r
 
   inline void updateBotRight(
 		  const float a00,

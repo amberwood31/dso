@@ -473,6 +473,19 @@ EFPoint* EnergyFunctional::insertPoint(PointHessian* ph)
 	return efp;
 }
 
+EFPlane* EnergyFunctional::insertPlane(PlaneHessian* plh)
+{
+    EFPlane* efpl = new EFPlane(plh, plh->host->efFrame);
+    efpl->idxInPlanes = plh->host->efFrame->planes.size();
+    plh->host->efFrame->planes.push_back(efpl);
+
+    nPlanes++;
+    plh->efPlane = efpl;
+
+    return efpl;
+
+}
+
 
 void EnergyFunctional::dropResidual(EFResidual* r)
 {

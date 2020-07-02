@@ -52,8 +52,11 @@ struct PointHessian;
 class ImmaturePoint;
 class FrameShell;
 
+struct Plane;
+
 class EFFrame;
 class EFPoint;
+class EFPlane;
 
 #define SCALE_IDEPTH 1.0f		// scales internal value to idepth.
 #define SCALE_XI_ROT 1.0f
@@ -140,8 +143,10 @@ struct FrameHessian
 	std::vector<PointHessian*> pointHessiansOut;		// contains all OUTLIER points (= discarded.).
 	std::vector<ImmaturePoint*> immaturePoints;		// contains all OUTLIER points (= discarded.).
 
-
-	Mat66 nullspaces_pose;
+    std::vector<PlaneHessian*> planeHessians;           // constains all planes
+	std::vector<PlaneHessian*> planeHessiansMarginalized;
+	std::vector<PlaneHessian*> planeHessiansOut;
+    Mat66 nullspaces_pose;
 	Mat42 nullspaces_affine;
 	Vec6 nullspaces_scale;
 
@@ -398,6 +403,33 @@ struct CalibHessian
 	}
 };
 
+struct PlaneHessian
+{
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+    static int instanceCounter;
+    EFPlane* efPlane;
+
+    Vec4f m; // plane parameters, unit quatonion
+    Vec4f m_zero; // initialization value, from planeNet
+    int idx;
+    float energyTH;
+    FrameHessian* host;
+
+    std::vector<PointHessian*> pointHessians;				// contains all points on this plane
+
+    std::vector<PointFrameResidual*> residuals;					// only contains good residuals (not OOB and not OUTLIER). Arbitrary order.
+    std::pair<PointFrameResidual*, ResState> lastResiduals[2]; 	// contains information about residuals to the last two (!) frames. ([0] = latest, [1] = the one before).
+
+
+
+    void release();
+    PlaneHessian(const Plane* const rawPlane, CalibHessian* Hcalib);
+    //How to construct? When to construct?
+
+    inline ~PlaneHessian() {assert(efPlane==0); release(); instanceCounter--;}
+
+
+};
 
 // hessian component associated with one point.
 struct PointHessian
@@ -417,6 +449,7 @@ struct PointHessian
 	float energyTH;
 	FrameHessian* host;
 	bool hasDepthPrior;
+	float semantic_flag;
 
 	float my_type;
 
