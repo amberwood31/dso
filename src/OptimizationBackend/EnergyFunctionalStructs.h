@@ -157,6 +157,10 @@ public:
     EFFrame* host;
     EFPlaneStatus stateFlag;
 
+    Vec4f prior;                // prior
+    Vec4f delta_prior;          // = state-state_prior
+    Vec4f delta;                // = state - state_zero
+
     // constant info (never changes in-between).
     int idxInPlanes; // what does this do? // todo
 

@@ -498,7 +498,7 @@ struct PointHessian
 
 	inline bool isOOB(const std::vector<FrameHessian*>& toKeep, const std::vector<FrameHessian*>& toMarg) const
 	{
-
+        // a bunch of criterias to decide whether point should be marginalized, isOOB=true means to be marginalized
 		int visInToMarg = 0;
 		for(PointFrameResidual* r : residuals)
 		{

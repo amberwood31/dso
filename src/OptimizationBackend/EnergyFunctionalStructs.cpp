@@ -79,9 +79,18 @@ void EFFrame::takeData()
 void EFPoint::takeData()
 {
 	priorF = data->hasDepthPrior ? setting_idepthFixPrior*SCALE_IDEPTH*SCALE_IDEPTH : 0;
-	if(setting_solverMode & SOLVER_REMOVE_POSEPRIOR) priorF=0;
+	if(setting_solverMode & SOLVER_REMOVE_POSEPRIOR) priorF=0; // if setting is to ignore prior
 
 	deltaF = data->idepth-data->idepth_zero;
+}
+
+void EFPlane::takeData() {
+
+    prior = data->m_zero;
+
+    delta = data->m - data->m_zero;
+
+
 }
 
 
@@ -92,7 +101,7 @@ void EFResidual::fixLinearizationF(EnergyFunctional* ef)
 	// compute Jp*delta
 	__m128 Jp_delta_x = _mm_set1_ps(J->Jpdxi[0].dot(dp.head<6>())
 								   +J->Jpdc[0].dot(ef->cDeltaF)
-								   +J->Jpdd[0]*point->deltaF);
+								   +J->Jpdd[0]*point->deltaF); // copy the 32 bit floats 128/32 times into m128
 	__m128 Jp_delta_y = _mm_set1_ps(J->Jpdxi[1].dot(dp.head<6>())
 								   +J->Jpdc[1].dot(ef->cDeltaF)
 								   +J->Jpdd[1]*point->deltaF);

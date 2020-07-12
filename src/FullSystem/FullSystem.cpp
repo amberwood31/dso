@@ -715,6 +715,7 @@ void FullSystem::flagPointsForRemoval()
 	std::vector<FrameHessian*> fhsToMargPoints;
 
 	//if(setting_margPointVisWindow>0)
+	// gather the frames that need to be kept or marginalized
 	{
 		for(int i=((int)frameHessians.size())-1;i>=0 && i >= ((int)frameHessians.size());i--)
 			if(!frameHessians[i]->flaggedForMarginalization) fhsToKeepPoints.push_back(frameHessians[i]);
@@ -743,6 +744,8 @@ void FullSystem::flagPointsForRemoval()
 				host->pointHessians[i]=0;
 				flag_nores++;
 			}
+			// if the host frames are flagged for marginalization, flag the points for marginalization too
+			// if the point
 			else if(ph->isOOB(fhsToKeepPoints, fhsToMargPoints) || host->flaggedForMarginalization)
 			{
 				flag_oob++;
@@ -758,7 +761,7 @@ void FullSystem::flagPointsForRemoval()
 						r->applyRes(true);
 						if(r->efResidual->isActive())
 						{
-							r->efResidual->fixLinearizationF(ef);
+							r->efResidual->fixLinearizationF(ef); // isLinearized is set to true in this function
 							ngoodRes++;
 						}
 					}

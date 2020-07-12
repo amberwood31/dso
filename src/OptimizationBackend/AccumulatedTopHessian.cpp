@@ -80,6 +80,10 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 			resApprox = r->res_toZeroF;
 		if(mode==1)
 		{
+		    // WHY compute res_toZeroF again here?
+		    // Because at this point, res_toZeroF is not computed yet.
+		        //res_toZeroF is computed in fixLinearizationF, which is called by flagPointsForRemoval, which is ran after solveSystemF. So when solveSystemF calls this loop here, res_toZeroF is not set yet.
+
 			// compute Jp*delta
 			__m128 Jp_delta_x = _mm_set1_ps(rJ->Jpdxi[0].dot(dp.head<6>())+rJ->Jpdc[0].dot(dc)+rJ->Jpdd[0]*dd);
 			__m128 Jp_delta_y = _mm_set1_ps(rJ->Jpdxi[1].dot(dp.head<6>())+rJ->Jpdc[1].dot(dc)+rJ->Jpdd[1]*dd);
