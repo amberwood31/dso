@@ -411,6 +411,7 @@ struct PlaneHessian
 
     Vec4f m; // plane parameters, unit quatonion
     Vec4f m_zero; // initialization value, from planeNet
+    Vec4f m_backup; // backup state
     int idx;
     float energyTH;
     FrameHessian* host;

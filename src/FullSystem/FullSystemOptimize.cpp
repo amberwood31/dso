@@ -355,6 +355,8 @@ void FullSystem::backupState(bool backupLastStep)
 			fh->state_backup = fh->get_state();
 			for(PointHessian* ph : fh->pointHessians)
 				ph->idepth_backup = ph->idepth;
+			for(PlaneHessian* plh : fh->planeHessians)
+			    plh->m_backup = plh->m;
 		}
 	}
 }
