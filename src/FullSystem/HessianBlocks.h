@@ -473,8 +473,8 @@ struct PointHessian
 
 
 	inline void setIdepth(float idepth) {
-		this->idepth = idepth;
-		this->idepth_scaled = SCALE_IDEPTH * idepth;
+        this->idepth_scaled = SCALE_IDEPTH * idepth;
+        this->idepth = idepth;
     }
 	inline void setIdepthScaled(float idepth_scaled) {
 		this->idepth = SCALE_IDEPTH_INVERSE * idepth_scaled;

@@ -132,6 +132,7 @@ FullSystem::FullSystem()
 
 
 	selectionMap = new float[wG[0]*hG[0]];
+	semanticMap = new float[wG[0]*hG[0]];
 
 	coarseDistanceMap = new CoarseDistanceMap(wG[0], hG[0]);
 	coarseTracker = new CoarseTracker(wG[0], hG[0]);
@@ -806,6 +807,20 @@ void FullSystem::flagPointsForRemoval()
 
 }
 
+void FullSystem::setSemanticFlag() {
+
+    // loop through all pointHessians and set the semantic flag
+    for(FrameHessian* fh : frameHessians)
+        for(PointHessian* ph: fh->pointHessians)
+        {
+            int x = int(ph->u);
+            int y = int(ph->v);
+            int i = x + y*wG[0]; //todo review, whether this index is correct
+
+            ph->semantic_flag = semanticMap[i];
+        }
+
+}
 
 void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 {
@@ -843,8 +858,13 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 
 			{   // run planeNet here
 			    // should consider make this another thread //todo
-                if (planeInitializer->detectPlane(image->image))
+                if (planeInitializer->detectPlane(image->image)){
                     std::cout<< "planeNet successfully done" << std::endl;
+
+                    setSemanticFlag();
+
+                }
+
 
             }
 		}

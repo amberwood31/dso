@@ -194,7 +194,8 @@ private:
 	// set precalc values.
 	void setPrecalcValues();
 
-
+    // set semantic flags of pointhessians
+    void setSemanticFlag();
 	// solce. eventually migrate to ef.
 	void solveSystem(int iteration, double lambda);
 	Vec3 linearizeAll(bool fixLinearization);
