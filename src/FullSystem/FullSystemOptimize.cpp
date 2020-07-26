@@ -213,7 +213,7 @@ Vec3 FullSystem::linearizeAll(bool fixLinearization)
 
 
 // applies step to linearization point.
-bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,float stepfacA,float stepfacD)
+bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,float stepfacA,float stepfacD, float stepfacM)
 {
 //	float meanStepC=0,meanStepP=0,meanStepD=0;
 //	meanStepC += Hcalib.step.norm();
@@ -224,9 +224,9 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 	pstepfac.segment<4>(6).setConstant(stepfacA);
 
 
-	float sumA=0, sumB=0, sumT=0, sumR=0, sumID=0, numID=0;
+	float sumA=0, sumB=0, sumT=0, sumR=0, sumID=0, numID=0, numMID=0, sumM=0;
 
-	float sumNID=0;
+	float sumNID=0, sumMID=0;
 
 	if(setting_solverMode & SOLVER_MOMENTUM)
 	{
@@ -265,14 +265,35 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 			sumT += fh->step.segment<3>(0).squaredNorm();
 			sumR += fh->step.segment<3>(3).squaredNorm();
 
+			for (PlaneHessian* plh: fh->planeHessians)
+            {
+			    plh->setMparam(plh->m_backup + stepfacM*plh->step);
+			    sumM += plh->step.squaredNorm();
+			    numMID++;
+
+            }
+
 			for(PointHessian* ph : fh->pointHessians)
 			{
-				ph->setIdepth(ph->idepth_backup + stepfacD*ph->step);
-				sumID += ph->step*ph->step;
-				sumNID += fabsf(ph->idepth_backup);
-				numID++;
+			    if (ph->semantic_flag == 0.5f){
+                    ph->setIdepth(ph->idepth_backup + stepfacD*ph->step);
+                    sumID += ph->step*ph->step;
+                    sumNID += fabsf(ph->idepth_backup);
+                    numID++;
+                    ph->setIdepthZero(ph->idepth_backup + stepfacD*ph->step);
+                }
+			    else if (ph->semantic_flag != 0.0f){ // 0.0f: planeNet not finished
+			        Vec4f m_new = fh->planeHessians.at((int)ph->semantic_flag-1)->m;
+                    float idepth_new = ((ph->u-Hcalib.cxl())*m_new[0]*Hcalib.fyl()+(ph->v-Hcalib.cyl())*m_new[1]*Hcalib.fxl()+Hcalib.fxl()*Hcalib.fyl()*m_new[2]) * Hcalib.fxli() * Hcalib.fyli() / m_new[3]; //todo review: this is super error prone
+                    ph->setIdepth(idepth_new);
 
-                ph->setIdepthZero(ph->idepth_backup + stepfacD*ph->step);
+                    // these points are NOT being optimized directly, their states are just stored so that other Jacobians can be computed easily
+                    // is it necessary to sum them here? //todo
+
+			    }
+
+
+
 			}
 		}
 	}
@@ -283,6 +304,7 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 	sumT /= frameHessians.size();
 	sumID /= numID;
 	sumNID /= numID;
+	sumM /= numMID;
 
 
 
@@ -298,7 +320,8 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 	setPrecalcValues();
 
 
-
+        // todo: How to set threshold on plane parameter updates?
+        //  sumID is the step, sumNID is the backup idepth. Why set threshold on the backup idepth * translation while setting threshold on step of A, B, R, T?
 	return sqrtf(sumA) < 0.0005*setting_thOptIterations &&
 			sqrtf(sumB) < 0.00005*setting_thOptIterations &&
 			sqrtf(sumR) < 0.00005*setting_thOptIterations &&
@@ -495,7 +518,7 @@ float FullSystem::optimize(int mnumOptIts)
 			if(stepsize <0.25) stepsize=0.25;
 		}
 
-		bool canbreak = doStepFromBackup(stepsize,stepsize,stepsize,stepsize,stepsize);
+		bool canbreak = doStepFromBackup(stepsize,stepsize,stepsize,stepsize,stepsize, stepsize);
 
 
 

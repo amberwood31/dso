@@ -267,7 +267,7 @@ void EnergyFunctional::resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
 {
 	assert(x.size() == CPARS+nFrames*8);
 
-	VecXf xF = x.cast<float>();
+	VecXf xF = x.cast<float>(); //todo question: why cast it again here, it's already eigen float vector
 	HCalib->step = - x.head<CPARS>();
 
 	Mat18f* xAd = new Mat18f[nFrames*nFrames];

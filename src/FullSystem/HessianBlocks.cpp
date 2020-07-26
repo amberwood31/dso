@@ -192,6 +192,7 @@ void FrameHessian::makeImages(float* color, CalibHessian* HCalib)
 	}
 }
 
+
 void FrameFramePrecalc::set(FrameHessian* host, FrameHessian* target, CalibHessian* HCalib )
 {
 	this->host = host;

@@ -282,8 +282,10 @@ void AccumulatedTopHessianSSE::stitchDoubleInternal(
 			accH += acc[tid2][aidx].H.cast<double>();
 		}
 
+		// H is initialized with all zeros
 		H[tid].block<8,8>(hIdx, hIdx).noalias() += EF->adHost[aidx] * accH.block<8,8>(CPARS,CPARS) * EF->adHost[aidx].transpose();
-        // why the block starts from (hIdx, hIdx), which are (4, 4) corresponding to camera intrinsics?
+        // the block starts from (hIdx, hIdx), which are (4, 4) corresponding to camera intrinsics
+        // because the top left 4x4 matrix is Jacobians related to camera intrinsics
 		H[tid].block<8,8>(tIdx, tIdx).noalias() += EF->adTarget[aidx] * accH.block<8,8>(CPARS,CPARS) * EF->adTarget[aidx].transpose();
 
 		H[tid].block<8,8>(hIdx, tIdx).noalias() += EF->adHost[aidx] * accH.block<8,8>(CPARS,CPARS) * EF->adTarget[aidx].transpose();

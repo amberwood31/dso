@@ -155,7 +155,7 @@ struct FrameHessian
 	Vec10 state_zero;
 	Vec10 state_scaled;
 	Vec10 state;	// [0-5: worldToCam-leftEps. 6-7: a,b]
-	Vec10 step;
+	Vec10 step; //todo question: why vec10? what are the last 2 terms?
 	Vec10 step_backup;
 	Vec10 state_backup;
 
@@ -409,9 +409,21 @@ struct PlaneHessian
     static int instanceCounter;
     EFPlane* efPlane;
 
+    // S(3) group element, i.e., unit quaternion
     Vec4f m; // plane parameters, unit quatonion
     Vec4f m_zero; // initialization value, from planeNet
     Vec4f m_backup; // backup state
+    Vec4f step;
+    Vec4f evalPT;
+
+
+    // s(3) Lie algebra vector, i.e., tangent vector
+    Vec3f t_m;
+    Vec3f t_m_zero;
+    Vec3f t_m_backup;
+    Vec3f t_step;
+
+
     int idx;
     float energyTH;
     FrameHessian* host;
@@ -426,6 +438,60 @@ struct PlaneHessian
     void release();
     PlaneHessian(const Plane* const rawPlane, CalibHessian* Hcalib);
     //How to construct? When to construct?
+
+    inline void setMparam(Vec4f m_param){
+        m = m_param;
+    };
+
+    inline static Vec4f exp(const Vec3f t_m){
+        float t_m_norm = t_m.norm();
+
+        Vec4f m_temp;
+        m_temp[0] = std::cos(t_m_norm/2);
+        m_temp[1] = t_m[0]/t_m_norm*std::sin(t_m_norm/2);
+        m_temp[2] = t_m[1]/t_m_norm*std::sin(t_m_norm/2);
+        m_temp[3] = t_m[2]/t_m_norm*std::sin(t_m_norm/2);
+
+        return m_temp;
+
+    };
+
+    inline static Mat43f exp_jacobian(const Vec4f m, const Vec3f t_m){
+        float t_m_norm = t_m.norm();
+        float m00 = - std::sin(t_m_norm/2) /2 *t_m[0] /t_m_norm;
+        float m01 = - std::sin(t_m_norm/2) /2 *t_m[1] /t_m_norm;
+        float m02 = - std::sin(t_m_norm/2) /2 *t_m[2] /t_m_norm;
+
+        float m10 = (t_m_norm - t_m[0]*t_m[0]/t_m_norm + t_m[0]*t_m[0]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
+        float m11 = (-t_m[0]*t_m[1]/t_m_norm + t_m[0]*t_m[1]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
+        float m12 = (-t_m[0]*t_m[2]/t_m_norm + t_m[0]*t_m[2]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
+
+        float m20 = m11;
+        float m21 = (t_m_norm - t_m[1]*t_m[1]/t_m_norm + t_m[1]*t_m[1]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
+        float m22 = (-t_m[1]*t_m[2]/t_m_norm + t_m[1]*t_m[2]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
+
+        float m30 = m12;
+        float m31 = m22;
+        float m32 = (t_m_norm - t_m[2]*t_m[2]/t_m_norm + t_m[2]*t_m[2]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
+
+        Mat43f J_temp;
+        J_temp << m00, m01, m02, m10, m11, m12, m20, m21, m22, m30, m31, m32;
+
+        return J_temp;
+    };
+
+    inline static Vec3f log(const Vec4f m){
+        float m_imag_norm = std::sqrt(m[1]*m[1] + m[2]*m[2] + m[3]*m[3]);
+
+        Vec3f t_m_temp;
+        t_m_temp[0]= 2*m[1]*std::atan2(m_imag_norm, m[0])/m_imag_norm;
+        t_m_temp[1]= 2*m[2]*std::atan2(m_imag_norm, m[0])/m_imag_norm;
+        t_m_temp[2]= 2*m[3]*std::atan2(m_imag_norm, m[0])/m_imag_norm;
+
+        return t_m_temp;
+
+
+    };
 
     inline ~PlaneHessian() {assert(efPlane==0); release(); instanceCounter--;}
 
