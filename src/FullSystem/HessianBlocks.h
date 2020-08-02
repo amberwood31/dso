@@ -403,6 +403,89 @@ struct CalibHessian
 	}
 };
 
+class Plane3D{
+public:
+
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+    Plane3D(){
+
+        // initialized with unit quaternion represenation
+        m_normd << 1., 0., 0., -1.;
+        m_unitq << 1.0/std::sqrt(2), 0., 0., 1.0/std::sqrt(2);
+
+    }
+
+    Plane3D(Vec4f normal_distance){
+        m_unitq[0] = normal_distance[0]/std::sqrt(1+normal_distance[3]*normal_distance[3]);
+        m_unitq[1] = normal_distance[1]/std::sqrt(1+normal_distance[3]*normal_distance[3]);
+        m_unitq[2] = normal_distance[2]/std::sqrt(1+normal_distance[3]*normal_distance[3]);
+        m_unitq[3] = - normal_distance[3]/std::sqrt(1+normal_distance[3]*normal_distance[3]);
+
+        m_normd = normal_distance;
+    }
+
+
+
+    inline static Vec4f exp(const Vec3f t_m){
+        float t_m_norm = t_m.norm();
+
+        Vec4f m_temp;
+        m_temp[0] = std::cos(t_m_norm/2);
+        m_temp[1] = t_m[0]/t_m_norm*std::sin(t_m_norm/2);
+        m_temp[2] = t_m[1]/t_m_norm*std::sin(t_m_norm/2);
+        m_temp[3] = t_m[2]/t_m_norm*std::sin(t_m_norm/2);
+
+        return m_temp;
+
+    };
+
+    inline static Mat43f exp_jacobian(const Vec4f m, const Vec3f t_m){
+        float t_m_norm = t_m.norm();
+        float m00 = - std::sin(t_m_norm/2) /2 *t_m[0] /t_m_norm;
+        float m01 = - std::sin(t_m_norm/2) /2 *t_m[1] /t_m_norm;
+        float m02 = - std::sin(t_m_norm/2) /2 *t_m[2] /t_m_norm;
+
+        float m10 = (t_m_norm - t_m[0]*t_m[0]/t_m_norm + t_m[0]*t_m[0]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
+        float m11 = (-t_m[0]*t_m[1]/t_m_norm + t_m[0]*t_m[1]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
+        float m12 = (-t_m[0]*t_m[2]/t_m_norm + t_m[0]*t_m[2]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
+
+        float m20 = m11;
+        float m21 = (t_m_norm - t_m[1]*t_m[1]/t_m_norm + t_m[1]*t_m[1]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
+        float m22 = (-t_m[1]*t_m[2]/t_m_norm + t_m[1]*t_m[2]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
+
+        float m30 = m12;
+        float m31 = m22;
+        float m32 = (t_m_norm - t_m[2]*t_m[2]/t_m_norm + t_m[2]*t_m[2]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
+
+        Mat43f J_temp;
+        J_temp << m00, m01, m02, m10, m11, m12, m20, m21, m22, m30, m31, m32;
+
+        return J_temp;
+    };
+
+    inline static Vec3f log(const Vec4f m){
+        float m_imag_norm = std::sqrt(m[1]*m[1] + m[2]*m[2] + m[3]*m[3]);
+
+        Vec3f t_m_temp;
+        t_m_temp[0]= 2*m[1]*std::atan2(m_imag_norm, m[0])/m_imag_norm;
+        t_m_temp[1]= 2*m[2]*std::atan2(m_imag_norm, m[0])/m_imag_norm;
+        t_m_temp[2]= 2*m[3]*std::atan2(m_imag_norm, m[0])/m_imag_norm;
+
+        return t_m_temp;
+
+
+    };
+
+
+private:
+
+    Vec4f m_unitq;
+    Vec4f m_normd;
+    Vec3f t_m;
+
+};
+
 struct PlaneHessian
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
