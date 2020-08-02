@@ -44,7 +44,7 @@ struct RawResidualJacobian
 	// the two rows of d[x,y]/d[idepth].
 	Vec2f Jpdd;				// 2x1
 
-	// the four columns of d[idepth]/d[M]
+	// the four columns of d[idepth]/d[M], plane related
 	Vec4f JddM;             // 1x4
 
 	// the two columns of d[r]/d[x,y].

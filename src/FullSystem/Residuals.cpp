@@ -179,10 +179,10 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 
             Vec4f m = point->host->planeHessians.at(int(point->semantic_flag)-1)->m_zero;
 
-            J->JddM[0] = (point->u-HCalib->cxl())*HCalib->fxli()/m[3]; //
-            J->JddM[1] = (point->v-HCalib->cyl())*HCalib->fyli()/m[3]; //
-            J->JddM[2] = 1/m[3] ; //
-            J->JddM[3] = -((point->u-HCalib->cxl())*m[0]*HCalib->fyl()
+            J->JddM[0] = -(point->u-HCalib->cxl())*HCalib->fxli()/m[3]; //
+            J->JddM[1] = -(point->v-HCalib->cyl())*HCalib->fyli()/m[3]; //
+            J->JddM[2] = -1/m[3] ; //
+            J->JddM[3] = ((point->u-HCalib->cxl())*m[0]*HCalib->fyl()
                            + (point->v-HCalib->cyl())*m[1]*HCalib->fxl()
                            + HCalib->fxl()*HCalib->fyl()*m[2])
                          *HCalib->fxli()*HCalib->fyli()/(m[3]*m[3]) ; //
