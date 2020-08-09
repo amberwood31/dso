@@ -74,8 +74,11 @@ typedef Eigen::Matrix<double,3,3> Mat33;
 typedef Eigen::Matrix<double,2,2> Mat22;
 typedef Eigen::Matrix<double,8,CPARS> Mat8C;
 typedef Eigen::Matrix<double,CPARS,8> MatC8;
+typedef Eigen::Matrix<float,3,CPARS> Mat3Cf;
+typedef Eigen::Matrix<float,CPARS,3> MatC3f;
 typedef Eigen::Matrix<float,8,CPARS> Mat8Cf;
 typedef Eigen::Matrix<float,CPARS,8> MatC8f;
+typedef Eigen::Matrix<float,2,3> Mat23f;
 
 typedef Eigen::Matrix<double,8,8> Mat88;
 typedef Eigen::Matrix<double,7,7> Mat77;
@@ -93,6 +96,7 @@ typedef Eigen::Matrix<double,4,1> Vec4;
 typedef Eigen::Matrix<double,3,1> Vec3;
 typedef Eigen::Matrix<double,2,1> Vec2;
 typedef Eigen::Matrix<double,Eigen::Dynamic,1> VecX;
+typedef Eigen::Matrix<float,2,4> Mat24f;
 
 typedef Eigen::Matrix<float,3,3> Mat33f;
 typedef Eigen::Matrix<float,10,3> Mat103f;

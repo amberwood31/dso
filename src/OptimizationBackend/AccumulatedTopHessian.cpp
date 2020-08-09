@@ -35,6 +35,135 @@ namespace dso
 {
 
 
+template<int mode>
+void AccumulatedTopHessianSSE::addPlane(EFPlane* pl, EnergyFunctional const *const ef, int tid) // 0 = active, 1= linearized, 2=marginalize
+{
+    assert(mode==0 || mode==1 || mode==2);
+
+    VecCf dc = ef->cDeltaF;
+    Vec3f dpl = pl->deltaF;
+
+    Vec3f bp_acc=Vec3f::Zero();
+    Mat33f Hpp_acc=Mat33f::Zero();
+    MatC3f Hcp_acc=MatC3f::Zero();
+
+    for (EFResidual* r : pl->residualsAll) // the residual is still the photometric value of the point, but now, the residual depends on plane parameter, instead of point idepth
+    {
+        //todo these conditions need to be reviewed considering plane
+        if(mode==0) //accumulate active points, therefore linearized ones are ignored
+        {
+            if(r->isLinearized || !r->isActive()) continue;
+        }
+        if(mode==1) // accumulate linearized points, therefore not linearized one
+        {
+            if(!r->isLinearized || !r->isActive()) continue;
+        }
+        if(mode==2)
+        {
+            if(!r->isActive()) continue;
+            assert(r->isLinearized);
+        }
+
+        RawResidualJacobian* rJ = r->J;
+        int htIDX = r->hostIDX + r->targetIDX*nframes[tid]; // compute the host-target pair ID
+
+        Mat18f dp = ef->adHTdeltaF[htIDX];
+
+
+
+        VecNRf resApprox;
+        if(mode==0)
+            resApprox = rJ->resF; // Vec8f, photometric residuals of the 8 pixels surrounding this point
+        if(mode==2)
+            resApprox = r->res_toZeroF;
+        if(mode==1)
+        {
+
+
+            // compute Jp*delta
+            __m128 Jpl_delta_x = _mm_set1_ps(rJ->Jpdxi[0].dot(dp.head<6>())+rJ->Jpdc[0].dot(dc)+rJ->JpdM[0].dot(dpl));
+            __m128 Jpl_delta_y = _mm_set1_ps(rJ->Jpdxi[1].dot(dp.head<6>())+rJ->Jpdc[1].dot(dc)+rJ->JpdM[1].dot(dpl));
+            __m128 delta_a = _mm_set1_ps((float)(dp[6]));
+            __m128 delta_b = _mm_set1_ps((float)(dp[7]));
+
+            for(int i=0;i<patternNum;i+=4)
+            {
+                // PATTERN: rtz = resF - [JI*Jp Ja]*delta.
+                __m128 rtz = _mm_load_ps(((float*)&r->res_toZeroF)+i);
+                rtz = _mm_add_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(rJ->JIdx))+i),Jpl_delta_x));
+                rtz = _mm_add_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(rJ->JIdx+1))+i),Jpl_delta_y));
+                rtz = _mm_add_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(rJ->JabF))+i),delta_a));
+                rtz = _mm_add_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(rJ->JabF+1))+i),delta_b));
+                _mm_store_ps(((float*)&resApprox)+i, rtz);
+            }
+        }
+
+        // need to compute JI^T * r. (2-vector).
+        Vec2f JI_r(0,0);
+        Vec2f Jab_r(0,0);
+        float rr=0;
+        for(int i=0;i<patternNum;i++)
+        {
+            JI_r[0] += resApprox[i] *rJ->JIdx[0][i];
+            JI_r[1] += resApprox[i] *rJ->JIdx[1][i];
+            rr += resApprox[i]*resApprox[i];
+        }
+
+        // first compute the squared of gradient of Residual v.s. CAMERA + POSE (dimension: 10)
+        // this updates the left corner of matrix
+        acc[tid][htIDX].update(
+            rJ->Jpdc[0].data(), rJ->Jpdxi[0].data(),
+            rJ->Jpdc[1].data(), rJ->Jpdxi[1].data(),
+            rJ->JIdx2(0,0),rJ->JIdx2(0,1),rJ->JIdx2(1,1));
+
+        // these two parts of the matrix concern residuals
+        acc[tid][htIDX].updateBotRight(
+            rJ->Jab2(0,0), rJ->Jab2(0,1), Jab_r[0],
+            rJ->Jab2(1,1), Jab_r[1],rr);
+
+        acc[tid][htIDX].updateTopRight(
+            rJ->Jpdc[0].data(), rJ->Jpdxi[0].data(),
+            rJ->Jpdc[1].data(), rJ->Jpdxi[1].data(),
+            rJ->JabJIdx(0,0), rJ->JabJIdx(0,1),
+            rJ->JabJIdx(1,0), rJ->JabJIdx(1,1),
+            JI_r[0], JI_r[1]);
+
+        Mat23f Ji2_JpM = rJ->JIdx2*rJ->Jpdd*rJ->JddM;
+        Hpp_acc += Ji2_JpM.transpose()*rJ->Jpdd*rJ->JddM;
+        Mat24f Jpdc_mat;
+        Jpdc_mat << rJ->Jpdc[0], rJ->Jpdc[1];
+
+        Hcp_acc +=Jpdc_mat.transpose()*Ji2_JpM;
+
+        bp_acc = bp_acc + JI_r[0]*rJ->JpdM[0] + JI_r[1]*rJ->JpdM[1];
+
+
+    }
+
+    if(mode==0)
+    {
+        pl->Hpp_accAF = Hpp_acc;
+        pl->bp_accAF = bp_acc;
+        pl->Hcp_accAF = Hcp_acc;
+
+
+    }
+    if(mode==1 || mode==2)
+    {
+        pl->Hpp_accLF = Hpp_acc;
+        pl->Hcp_accLF = Hcp_acc;
+        pl->bp_accLF = bp_acc;
+    }
+    if(mode==2)
+    {
+        //todo why set these terms to zero here?
+        pl->Hcp_accAF.setZero();
+        pl->Hpp_accAF.setZero();
+        pl->bp_accAF.setZero();
+
+    }
+
+}
 
 template<int mode>
 void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * const ef, int tid)	// 0 = active, 1 = linearized, 2=marginalize
@@ -43,77 +172,78 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 
 	assert(mode==0 || mode==1 || mode==2);
 
-	VecCf dc = ef->cDeltaF;
-	float dd = p->deltaF;
+    VecCf dc = ef->cDeltaF;
+    float dd = p->deltaF;
 
-	float bd_acc=0;
-	float Hdd_acc=0;
-	VecCf  Hcd_acc = VecCf::Zero();
+    float bd_acc=0;
+    float Hdd_acc=0;
+    VecCf  Hcd_acc = VecCf::Zero();
 
-	for(EFResidual* r : p->residualsAll)
-	{
-		if(mode==0) //accumulate active points, therefore linearized ones are ignored
-		{
-			if(r->isLinearized || !r->isActive()) continue;
-		}
-		if(mode==1) // accumulate linearized points, therefore not linearized one
-		{
-			if(!r->isLinearized || !r->isActive()) continue;
-		}
-		if(mode==2)
-		{
-			if(!r->isActive()) continue;
-			assert(r->isLinearized);
-		}
-
-
-		RawResidualJacobian* rJ = r->J;
-		int htIDX = r->hostIDX + r->targetIDX*nframes[tid]; // compute the host-target pair ID
-		Mat18f dp = ef->adHTdeltaF[htIDX];
+    for(EFResidual* r : p->residualsAll)
+    {
+        if(mode==0) //accumulate active points, therefore linearized ones are ignored
+        {
+            if(r->isLinearized || !r->isActive()) continue;
+        }
+        if(mode==1) // accumulate linearized points, therefore not linearized one is ignored
+        {
+            if(!r->isLinearized || !r->isActive()) continue;
+        }
+        if(mode==2)
+        {
+            if(!r->isActive()) continue;
+            assert(r->isLinearized);
+        }
 
 
+        RawResidualJacobian* rJ = r->J;
+        int htIDX = r->hostIDX + r->targetIDX*nframes[tid]; // compute the host-target pair ID
+        Mat18f dp = ef->adHTdeltaF[htIDX];
 
-		VecNRf resApprox;
-		if(mode==0)
-			resApprox = rJ->resF;
-		if(mode==2)
-			resApprox = r->res_toZeroF;
-		if(mode==1)
-		{
-		    // WHY compute res_toZeroF again here?
-		    // Because at this point, res_toZeroF is not computed yet.
-		        //res_toZeroF is computed in fixLinearizationF, which is called by flagPointsForRemoval, which is ran after solveSystemF. So when solveSystemF calls this loop here, res_toZeroF is not set yet.
 
-			// compute Jp*delta
-			__m128 Jp_delta_x = _mm_set1_ps(rJ->Jpdxi[0].dot(dp.head<6>())+rJ->Jpdc[0].dot(dc)+rJ->Jpdd[0]*dd);
-			__m128 Jp_delta_y = _mm_set1_ps(rJ->Jpdxi[1].dot(dp.head<6>())+rJ->Jpdc[1].dot(dc)+rJ->Jpdd[1]*dd);
-			__m128 delta_a = _mm_set1_ps((float)(dp[6]));
-			__m128 delta_b = _mm_set1_ps((float)(dp[7]));
 
-			for(int i=0;i<patternNum;i+=4)
-			{
-				// PATTERN: rtz = resF - [JI*Jp Ja]*delta.
-				__m128 rtz = _mm_load_ps(((float*)&r->res_toZeroF)+i);
-				rtz = _mm_add_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(rJ->JIdx))+i),Jp_delta_x));
-				rtz = _mm_add_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(rJ->JIdx+1))+i),Jp_delta_y));
-				rtz = _mm_add_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(rJ->JabF))+i),delta_a));
-				rtz = _mm_add_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(rJ->JabF+1))+i),delta_b));
-				_mm_store_ps(((float*)&resApprox)+i, rtz);
-			}
-		}
+        VecNRf resApprox;
+        if(mode==0)
+            resApprox = rJ->resF; // Vec8f, photometric residuals of the 8 pixels surrounding this point
+        if(mode==2)
+            resApprox = r->res_toZeroF;
+        if(mode==1)
+        {
 
-		// need to compute JI^T * r, and Jab^T * r. (both are 2-vectors).
-		Vec2f JI_r(0,0);
-		Vec2f Jab_r(0,0);
-		float rr=0;
-		for(int i=0;i<patternNum;i++)
-		{
-			JI_r[0] += resApprox[i] *rJ->JIdx[0][i];
-			JI_r[1] += resApprox[i] *rJ->JIdx[1][i];
-			Jab_r[0] += resApprox[i] *rJ->JabF[0][i];
-			Jab_r[1] += resApprox[i] *rJ->JabF[1][i];
-			rr += resApprox[i]*resApprox[i];
-		}
+            //res_toZeroF is computed in fixLinearizationF, when marginalizing a point
+            // now these linearized residuals are updated with the newly updated solution
+
+
+            // compute Jp*delta
+            __m128 Jp_delta_x = _mm_set1_ps(rJ->Jpdxi[0].dot(dp.head<6>())+rJ->Jpdc[0].dot(dc)+rJ->Jpdd[0]*dd);
+            __m128 Jp_delta_y = _mm_set1_ps(rJ->Jpdxi[1].dot(dp.head<6>())+rJ->Jpdc[1].dot(dc)+rJ->Jpdd[1]*dd);
+            __m128 delta_a = _mm_set1_ps((float)(dp[6]));
+            __m128 delta_b = _mm_set1_ps((float)(dp[7]));
+
+            for(int i=0;i<patternNum;i+=4)
+            {
+                // PATTERN: rtz = res_toZeroF + [JI*Jp Ja]*delta.
+                __m128 rtz = _mm_load_ps(((float*)&r->res_toZeroF)+i);
+                rtz = _mm_add_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(rJ->JIdx))+i),Jp_delta_x));
+                rtz = _mm_add_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(rJ->JIdx+1))+i),Jp_delta_y));
+                rtz = _mm_add_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(rJ->JabF))+i),delta_a));
+                rtz = _mm_add_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(rJ->JabF+1))+i),delta_b));
+                _mm_store_ps(((float*)&resApprox)+i, rtz);
+            }
+        }
+
+        // need to compute JI^T * r, and Jab^T * r. (both are 2-vectors).
+        Vec2f JI_r(0,0);
+        Vec2f Jab_r(0,0);
+        float rr=0;
+        for(int i=0;i<patternNum;i++)
+        {
+            JI_r[0] += resApprox[i] *rJ->JIdx[0][i];
+            JI_r[1] += resApprox[i] *rJ->JIdx[1][i];
+            Jab_r[0] += resApprox[i] *rJ->JabF[0][i];
+            Jab_r[1] += resApprox[i] *rJ->JabF[1][i];
+            rr += resApprox[i]*resApprox[i];
+        }
 
         // acc is an array of size [n_threads], htIDX is host-target pair index
 
@@ -128,49 +258,54 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 
 
         // first compute the squared of gradient of Residual v.s. CAMERA + POSE (dimension: 10)
-		acc[tid][htIDX].update(
-				rJ->Jpdc[0].data(), rJ->Jpdxi[0].data(),
-				rJ->Jpdc[1].data(), rJ->Jpdxi[1].data(),
-				rJ->JIdx2(0,0),rJ->JIdx2(0,1),rJ->JIdx2(1,1));
-
-		acc[tid][htIDX].updateBotRight(
-				rJ->Jab2(0,0), rJ->Jab2(0,1), Jab_r[0],
-				rJ->Jab2(1,1), Jab_r[1],rr);
-
-		acc[tid][htIDX].updateTopRight(
-				rJ->Jpdc[0].data(), rJ->Jpdxi[0].data(),
-				rJ->Jpdc[1].data(), rJ->Jpdxi[1].data(),
-				rJ->JabJIdx(0,0), rJ->JabJIdx(0,1),
-				rJ->JabJIdx(1,0), rJ->JabJIdx(1,1),
-				JI_r[0], JI_r[1]);
+        // this updates the left corner of matrix
+        acc[tid][htIDX].update(
+            rJ->Jpdc[0].data(), rJ->Jpdxi[0].data(),
+            rJ->Jpdc[1].data(), rJ->Jpdxi[1].data(),
+            rJ->JIdx2(0,0),rJ->JIdx2(0,1),rJ->JIdx2(1,1));
 
 
-		Vec2f Ji2_Jpdd = rJ->JIdx2 * rJ->Jpdd;
-		bd_acc +=  JI_r[0]*rJ->Jpdd[0] + JI_r[1]*rJ->Jpdd[1];
-		Hdd_acc += Ji2_Jpdd.dot(rJ->Jpdd);
-		Hcd_acc += rJ->Jpdc[0]*Ji2_Jpdd[0] + rJ->Jpdc[1]*Ji2_Jpdd[1];
+        // todo I don't get the use of rr at the most bottom right  here. It's not used anywhere
+        acc[tid][htIDX].updateBotRight(
+            rJ->Jab2(0,0), rJ->Jab2(0,1), Jab_r[0],
+            rJ->Jab2(1,1), Jab_r[1],rr);
 
-		nres[tid]++;
-	}
+        acc[tid][htIDX].updateTopRight(
+            rJ->Jpdc[0].data(), rJ->Jpdxi[0].data(),
+            rJ->Jpdc[1].data(), rJ->Jpdxi[1].data(),
+            rJ->JabJIdx(0,0), rJ->JabJIdx(0,1),
+            rJ->JabJIdx(1,0), rJ->JabJIdx(1,1),
+            JI_r[0], JI_r[1]);
 
-	if(mode==0)
-	{
-		p->Hdd_accAF = Hdd_acc;
-		p->bd_accAF = bd_acc;
-		p->Hcd_accAF = Hcd_acc;
-	}
-	if(mode==1 || mode==2)
-	{
-		p->Hdd_accLF = Hdd_acc;
-		p->bd_accLF = bd_acc;
-		p->Hcd_accLF = Hcd_acc;
-	}
-	if(mode==2)
-	{
-		p->Hcd_accAF.setZero();
-		p->Hdd_accAF = 0;
-		p->bd_accAF = 0;
-	}
+
+        Vec2f Ji2_Jpdd = rJ->JIdx2 * rJ->Jpdd;
+        bd_acc +=  JI_r[0]*rJ->Jpdd[0] + JI_r[1]*rJ->Jpdd[1];
+        Hdd_acc += Ji2_Jpdd.dot(rJ->Jpdd);
+        Hcd_acc += rJ->Jpdc[0]*Ji2_Jpdd[0] + rJ->Jpdc[1]*Ji2_Jpdd[1];
+
+        nres[tid]++;
+    }
+
+    if(mode==0)
+    {
+        p->Hdd_accAF = Hdd_acc;
+        p->bd_accAF = bd_acc;
+        p->Hcd_accAF = Hcd_acc;
+    }
+    if(mode==1 || mode==2)
+    {
+        p->Hdd_accLF = Hdd_acc;
+        p->bd_accLF = bd_acc;
+        p->Hcd_accLF = Hcd_acc;
+    }
+    if(mode==2)
+    {
+        p->Hcd_accAF.setZero();
+        p->Hdd_accAF = 0;
+        p->bd_accAF = 0;
+    }
+
+
 
 }
 template void AccumulatedTopHessianSSE::addPoint<0>(EFPoint* p, EnergyFunctional const * const ef, int tid);

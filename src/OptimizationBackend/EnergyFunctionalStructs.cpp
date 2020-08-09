@@ -41,6 +41,7 @@ void EFResidual::takeDataF()
 	std::swap<RawResidualJacobian*>(J, data->J);
 
 	Vec2f JI_JI_Jd = J->JIdx2 * J->Jpdd;
+	// Multiplication of: dr/dpixel^T * dr/dpixel * dpixel/didepth
 
 	for(int i=0;i<6;i++)
 		JpJdF[i] = J->Jpdxi[0][i]*JI_JI_Jd[0] + J->Jpdxi[1][i] * JI_JI_Jd[1];
@@ -81,14 +82,13 @@ void EFPoint::takeData()
 	priorF = data->hasDepthPrior ? setting_idepthFixPrior*SCALE_IDEPTH*SCALE_IDEPTH : 0;
 	if(setting_solverMode & SOLVER_REMOVE_POSEPRIOR) priorF=0; // if setting is to ignore prior
 
+	semanticFlag = data->semantic_flag;
 	deltaF = data->idepth-data->idepth_zero;
 }
 
 void EFPlane::takeData() {
 
-    prior = data->m_zero;
-
-    delta = data->m - data->m_zero;
+    deltaF = data->get_state()-data->get_state_zero();
 
 
 }

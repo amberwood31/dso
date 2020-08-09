@@ -36,6 +36,7 @@ namespace dso
 {
 
 class EFPoint;
+class EFPlane;
 class EnergyFunctional;
 
 
@@ -86,6 +87,7 @@ public:
 
 	template<int mode> void addPoint(EFPoint* p, EnergyFunctional const * const ef, int tid=0);
 
+	template<int mode> void addPlane(EFPlane* pl, EnergyFunctional const * const ef, int tid=0);
 
 
 	void stitchDoubleMT(IndexThreadReduce<Vec10>* red, MatXX &H, VecX &b, EnergyFunctional const * const EF, bool usePrior, bool MT)

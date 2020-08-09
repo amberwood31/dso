@@ -1304,7 +1304,7 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
     {
 	    Plane* plane = planeInitializer->planes+i;
 
-        PlaneHessian* plh = new PlaneHessian(plane, &Hcalib);
+        PlaneHessian* plh = new PlaneHessian(plane, &Hcalib, firstFrame);
 
         firstFrame->planeHessians.push_back(plh);
         ef->insertPlane(plh);

@@ -52,7 +52,7 @@ void AccumulatedSCHessianSSE::addPoint(EFPoint* p, bool shiftPriorToZero, int ti
 	p->HdiF = 1.0 / H;
 	p->bdSumF = p->bd_accAF + p->bd_accLF;
 	if(shiftPriorToZero) p->bdSumF += p->priorF*p->deltaF;
-	VecCf Hcd = p->Hcd_accAF + p->Hcd_accLF;
+	VecCf Hcd = p->Hcd_accAF + p->Hcd_accLF; // off-diagonal Hessian terms corresponding to camera parameters and idepth
 	accHcc[tid].update(Hcd,Hcd,p->HdiF);
 	accbc[tid].update(Hcd, p->bdSumF * p->HdiF);
 
@@ -64,11 +64,12 @@ void AccumulatedSCHessianSSE::addPoint(EFPoint* p, bool shiftPriorToZero, int ti
 		if(!r1->isActive()) continue;
 		int r1ht = r1->hostIDX + r1->targetIDX*nframes[tid];
 
-		for(EFResidual* r2 : p->residualsAll)
+		for(EFResidual* r2 : p->residualsAll) // access the residuals of same point, maximum quantity is nFrames when points are observed in all frames
 		{
 			if(!r2->isActive()) continue;
 
-			accD[tid][r1ht+r2->targetIDX*nFrames2].update(r1->JpJdF, r2->JpJdF, p->HdiF);
+			accD[tid][r1ht+r2->targetIDX*nFrames2].update(r1->JpJdF, r2->JpJdF, p->HdiF);// this seems to say host frame index of r2 doesn't matter, but why?
+			// or only residuals relating to the same host frame will be relevant, but why?
 		}
 
 		accE[tid][r1ht].update(r1->JpJdF, Hcd, p->HdiF);
@@ -89,8 +90,8 @@ void AccumulatedSCHessianSSE::stitchDoubleInternal(
 
 	for(int k=min;k<max;k++)
 	{
-		int i = k%nf;
-		int j = k/nf;
+		int i = k%nf; // host frame index
+		int j = k/nf; // target frame index
 
 		int iIdx = CPARS+i*8;
 		int jIdx = CPARS+j*8;
@@ -195,9 +196,10 @@ void AccumulatedSCHessianSSE::stitchDouble(MatXX &H, VecX &b, EnergyFunctional c
 				if(accD[tid][ijkIdx].num == 0) continue;
 				Mat88 accDM = accD[tid][ijkIdx].A1m.cast<double>();
 
-				H.block<8,8>(iIdx, iIdx) += EF->adHost[ijIdx] * accDM * EF->adHost[ikIdx].transpose();
+				H.block<8,8>(iIdx, iIdx) += EF->adHost[ijIdx] * accDM * EF->adHost[ikIdx].transpose();// i->j, hostToTarget.Adj(), i->k, hostToTarget.Adj()
+				// accDM: residual ij and residual jk, pose Jacobian*Idepth Jacobian,
 
-				H.block<8,8>(jIdx, kIdx) += EF->adTarget[ijIdx] * accDM * EF->adTarget[ikIdx].transpose();
+				H.block<8,8>(jIdx, kIdx) += EF->adTarget[ijIdx] * accDM * EF->adTarget[ikIdx].transpose();// i->j, Identity, i->k, Identity
 
 				H.block<8,8>(jIdx, iIdx) += EF->adTarget[ijIdx] * accDM * EF->adHost[ikIdx].transpose();
 

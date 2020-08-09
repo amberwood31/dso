@@ -177,21 +177,28 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
             // semantic_flag = 0.0: planeNet not finished
             // semantic_flag = 0.5: planeNet finished, not on a plane
 
-            Vec4f m = point->host->planeHessians.at(int(point->semantic_flag)-1)->m_zero;
+            Vec4f m = point->host->planeHessians.at(int(point->semantic_flag)-1)->get_evalPT().m_unitq;
 
+            Vec4f J_temp;
+            J_temp[0] =-(point->u-HCalib->cxl())*HCalib->fxli()/m[3];
+            J_temp[1] =-(point->v-HCalib->cyl())*HCalib->fyli()/m[3];
+            J_temp[2] =-1/m[3];
+            J_temp[3] = ((point->u-HCalib->cxl())*m[0]*HCalib->fyl()
+                         + (point->v-HCalib->cyl())*m[1]*HCalib->fxl()
+                         + HCalib->fxl()*HCalib->fyl()*m[2])
+                        *HCalib->fxli()*HCalib->fyli()/(m[3]*m[3]) ;
 
-            J->JddM[0] = -(point->v-HCalib->cyl())*HCalib->fyli()/m[3]/2; //
-            J->JddM[1] = -1/m[3]/2 ; //
-            J->JddM[2] = ((point->u-HCalib->cxl())*m[0]*HCalib->fyl()
-                           + (point->v-HCalib->cyl())*m[1]*HCalib->fxl()
-                           + HCalib->fxl()*HCalib->fyl()*m[2])
-                         *HCalib->fxli()*HCalib->fyli()/(2*m[3]*m[3]) ; //
+            J->JddM[0] =  - (m[1]*J_temp[0] + m[0]*J_temp[1] - m[3]*J_temp[2] + m[2]*J_temp[3])/2;//
+            J->JddM[1] =  - (m[2]*J_temp[0] + m[3]*J_temp[1] + m[0]*J_temp[2] - m[1]*J_temp[3])/2;//
+            J->JddM[2] =  - (m[3]*J_temp[0] - m[2]*J_temp[1] + m[1]*J_temp[2] + m[0]*J_temp[3])/2;//
 
 
         }
 
     }
 
+    J->JpdM[0] = J->Jpdd[0] * J->JddM;
+    J->JpdM[1] = J->Jpdd[1] * J->JddM;
 
 
 	float JIdxJIdx_00=0, JIdxJIdx_11=0, JIdxJIdx_10=0;

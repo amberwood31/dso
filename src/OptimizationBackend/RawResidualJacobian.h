@@ -53,7 +53,8 @@ struct RawResidualJacobian
 	// = the two columns of d[r] / d[ab]
 	VecNRf JabF[2];			// 9x2
 
-
+    // = Jpdd*JddM
+	Vec3f JpdM[2];
 	// = JIdx^T * JIdx (inner product). Only as a shorthand.
 	Mat22f JIdx2;				// 2x2
 	// = Jab^T * JIdx (inner product). Only as a shorthand.

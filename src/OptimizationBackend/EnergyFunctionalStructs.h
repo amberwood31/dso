@@ -42,6 +42,7 @@ class PlaneHessian;
 class EFResidual;
 class EFPoint;
 class EFFrame;
+class EFPlane;
 class EnergyFunctional;
 
 
@@ -122,6 +123,7 @@ public:
 	// constant info (never changes in-between).
 	int idxInPoints;
 	EFFrame* host;
+	EFPlane* plane;
 
 	// contains all residuals.
 	std::vector<EFResidual*> residualsAll;
@@ -137,6 +139,8 @@ public:
 
 
 	EFPointStatus stateFlag;
+	float semanticFlag; // indicate whether point semantic is a point or plane
+
 };
 
 enum EFPlaneStatus {PLS_GOOD=0, PLS_MARGINALIZE, PLS_DROP};
@@ -157,15 +161,22 @@ public:
     EFFrame* host;
     EFPlaneStatus stateFlag;
 
-    Vec4f prior;                // prior
-    Vec4f delta_prior;          // = state-state_prior
-    Vec4f delta;                // = state - state_zero
+    Vec3f prior;                // prior
+    Vec3f delta_prior;          // = state-state_prior
+    Vec3f deltaF;                // = state - state_zero
 
     // constant info (never changes in-between).
     int idxInPlanes; // what does this do? // todo
 
     // contains all residuals
     std::vector<EFResidual*> residualsAll;
+
+    Mat33f Hpp_accAF;
+    MatC3f Hcp_accAF;
+    Vec3f bp_accAF;
+    Mat33f Hpp_accLF;
+    MatC3f Hcp_accLF;
+    Vec3f bp_accLF;
 
 
 

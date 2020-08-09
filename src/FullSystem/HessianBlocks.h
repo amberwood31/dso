@@ -146,6 +146,7 @@ struct FrameHessian
     std::vector<PlaneHessian*> planeHessians;           // constains all planes
 	std::vector<PlaneHessian*> planeHessiansMarginalized;
 	std::vector<PlaneHessian*> planeHessiansOut;
+
     Mat66 nullspaces_pose;
 	Mat42 nullspaces_affine;
 	Vec6 nullspaces_scale;
@@ -403,109 +404,166 @@ struct CalibHessian
 	}
 };
 
-class Plane3D{
-public:
+const float epsilon = 0.0001f;
 
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+// this class includes the tool functions to use S(3) group for plane representation
 
-    Plane3D(){
+class Plane_S3{
+    public:
 
-        // initialized with unit quaternion represenation
-        m_normd << 1., 0., 0., -1.;
-        m_unitq << 1.0/std::sqrt(2), 0., 0., 1.0/std::sqrt(2);
+        EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-    }
+        Plane_S3(){
 
-    Plane3D(Vec4f normal_distance){
-        m_unitq[0] = normal_distance[0]/std::sqrt(1+normal_distance[3]*normal_distance[3]);
-        m_unitq[1] = normal_distance[1]/std::sqrt(1+normal_distance[3]*normal_distance[3]);
-        m_unitq[2] = normal_distance[2]/std::sqrt(1+normal_distance[3]*normal_distance[3]);
-        m_unitq[3] = - normal_distance[3]/std::sqrt(1+normal_distance[3]*normal_distance[3]);
+            // initialized with unit quaternion represenation
+            m_normd << 1., 0., 0., -1.;
+            m_unitq << 1.0/std::sqrt(2), 0., 0., 1.0/std::sqrt(2);
+            m_eigenq = Eigen::Quaternionf(1.0/std::sqrt(2), 0., 0., 1.0/std::sqrt(2));
 
-        m_normd = normal_distance;
-    }
+        }
 
+        Plane_S3(const Vec4f &input, int options=0){
 
+            if (options == 0){
+                // input is normal distance representation
 
-    inline static Vec4f exp(const Vec3f t_m){
-        float t_m_norm = t_m.norm();
-
-        Vec4f m_temp;
-        m_temp[0] = std::cos(t_m_norm/2);
-        m_temp[1] = t_m[0]/t_m_norm*std::sin(t_m_norm/2);
-        m_temp[2] = t_m[1]/t_m_norm*std::sin(t_m_norm/2);
-        m_temp[3] = t_m[2]/t_m_norm*std::sin(t_m_norm/2);
-
-        return m_temp;
-
-    };
-
-    inline static Mat43f exp_jacobian(const Vec4f m, const Vec3f t_m){
-        float t_m_norm = t_m.norm();
-        float m00 = - std::sin(t_m_norm/2) /2 *t_m[0] /t_m_norm;
-        float m01 = - std::sin(t_m_norm/2) /2 *t_m[1] /t_m_norm;
-        float m02 = - std::sin(t_m_norm/2) /2 *t_m[2] /t_m_norm;
-
-        float m10 = (t_m_norm - t_m[0]*t_m[0]/t_m_norm + t_m[0]*t_m[0]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
-        float m11 = (-t_m[0]*t_m[1]/t_m_norm + t_m[0]*t_m[1]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
-        float m12 = (-t_m[0]*t_m[2]/t_m_norm + t_m[0]*t_m[2]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
-
-        float m20 = m11;
-        float m21 = (t_m_norm - t_m[1]*t_m[1]/t_m_norm + t_m[1]*t_m[1]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
-        float m22 = (-t_m[1]*t_m[2]/t_m_norm + t_m[1]*t_m[2]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
-
-        float m30 = m12;
-        float m31 = m22;
-        float m32 = (t_m_norm - t_m[2]*t_m[2]/t_m_norm + t_m[2]*t_m[2]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
-
-        Mat43f J_temp;
-        J_temp << m00, m01, m02, m10, m11, m12, m20, m21, m22, m30, m31, m32;
-
-        return J_temp;
-    };
-
-    inline static Vec3f log(const Vec4f m){
-        float m_imag_norm = std::sqrt(m[1]*m[1] + m[2]*m[2] + m[3]*m[3]);
-
-        Vec3f t_m_temp;
-        t_m_temp[0]= 2*m[1]*std::atan2(m_imag_norm, m[0])/m_imag_norm;
-        t_m_temp[1]= 2*m[2]*std::atan2(m_imag_norm, m[0])/m_imag_norm;
-        t_m_temp[2]= 2*m[3]*std::atan2(m_imag_norm, m[0])/m_imag_norm;
-
-        return t_m_temp;
+                set_normd(input);
 
 
-    };
+            }
+            else if (options == 1){
+                // input is unit quaternion representation
+
+                set_unitq(input);
+
+            }
+
+        };
+
+        Plane_S3(const Eigen::Quaternionf& eigen_q){
+
+            Vec4f v;
+            v << eigen_q.coeffs()[3], eigen_q.coeffs()[0], eigen_q.coeffs()[1], eigen_q.coeffs()[2];
+            set_unitq(v);
+        };
+
+        inline void set_normd(const Vec4f & input){
+            assert(fabs(input.segment<3>(0).norm() - 1.0f) < epsilon);
+            m_unitq[0] = input[0]/std::sqrt(1+input[3]*input[3]);
+            m_unitq[1] = input[1]/std::sqrt(1+input[3]*input[3]);
+            m_unitq[2] = input[2]/std::sqrt(1+input[3]*input[3]);
+            m_unitq[3] = - input[3]/std::sqrt(1+input[3]*input[3]);
+
+            m_normd = input;
+
+            m_eigenq = Eigen::Quaternionf(input[0]/std::sqrt(1+input[3]*input[3]), input[1]/std::sqrt(1+input[3]*input[3]),
+                                          input[2]/std::sqrt(1+input[3]*input[3]), - input[3]/std::sqrt(1+input[3]*input[3]));
+
+        };
+
+        inline void set_unitq(const Vec4f & input){
+            assert(fabs(input.norm()-1.0f) < epsilon);
+            m_unitq = input;
+
+            m_normd[0] = input[0]/std::sqrt(input[0]*input[0] + input[1]*input[1] + input[2]*input[2]);
+            m_normd[1] = input[1]/std::sqrt(input[0]*input[0] + input[1]*input[1] + input[2]*input[2]);
+            m_normd[2] = input[2]/std::sqrt(input[0]*input[0] + input[1]*input[1] + input[2]*input[2]);
+            m_normd[3] = - input[3]/std::sqrt(input[0]*input[0] + input[1]*input[1] + input[2]*input[2]);
+
+            m_eigenq = Eigen::Quaternionf(input[0], input[1], input[2], input[3]);
 
 
-private:
+        };
 
-    Vec4f m_unitq;
-    Vec4f m_normd;
-    Vec3f t_m;
+
+        inline static Plane_S3 exp(const Vec3f& t_m){
+            float t_m_norm = t_m.norm();
+
+            Vec4f m_temp;
+            m_temp[0] = std::cos(t_m_norm/2);
+            m_temp[1] = t_m[0]/t_m_norm*std::sin(t_m_norm/2);
+            m_temp[2] = t_m[1]/t_m_norm*std::sin(t_m_norm/2);
+            m_temp[3] = t_m[2]/t_m_norm*std::sin(t_m_norm/2);
+
+            return Plane_S3(m_temp, 1);
+
+        };
+
+
+        inline Plane_S3 oplus(const Vec3f& increment){
+            Plane_S3 increment_exp = exp(increment);
+            Eigen::Quaternionf temp = m_eigenq*increment_exp.m_eigenq; // right plus
+
+
+            return Plane_S3(temp);
+
+        };
+
+        inline Vec3f ominus(const Plane_S3& plane){
+
+            // right minus of (plane - self): log(self^-1*plane), gives local tangent vector at self
+            Eigen::Quaternionf temp = m_eigenq.inverse()*plane.m_eigenq;
+            Plane_S3 m = Plane_S3(temp);
+            Vec3f a = log(m);
+
+            return a;
+        };
+
+        inline static Mat43f exp_jacobian(const Vec3f & t_m){
+            float t_m_norm = t_m.norm();
+            float m00 = - std::sin(t_m_norm/2) /2 *t_m[0] /t_m_norm;
+            float m01 = - std::sin(t_m_norm/2) /2 *t_m[1] /t_m_norm;
+            float m02 = - std::sin(t_m_norm/2) /2 *t_m[2] /t_m_norm;
+
+            float m10 = (t_m_norm - t_m[0]*t_m[0]/t_m_norm + t_m[0]*t_m[0]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
+            float m11 = (-t_m[0]*t_m[1]/t_m_norm + t_m[0]*t_m[1]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
+            float m12 = (-t_m[0]*t_m[2]/t_m_norm + t_m[0]*t_m[2]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
+
+            float m20 = m11;
+            float m21 = (t_m_norm - t_m[1]*t_m[1]/t_m_norm + t_m[1]*t_m[1]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
+            float m22 = (-t_m[1]*t_m[2]/t_m_norm + t_m[1]*t_m[2]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
+
+            float m30 = m12;
+            float m31 = m22;
+            float m32 = (t_m_norm - t_m[2]*t_m[2]/t_m_norm + t_m[2]*t_m[2]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
+
+            Mat43f J_temp;
+            J_temp << m00, m01, m02, m10, m11, m12, m20, m21, m22, m30, m31, m32;
+
+            return J_temp;
+        };
+
+        inline static Vec3f log(const Plane_S3& p){
+            Vec4f m = p.m_unitq;
+            float m_imag_norm = std::sqrt(m[1]*m[1] + m[2]*m[2] + m[3]*m[3]);
+
+            Vec3f t_m_temp;
+            t_m_temp[0]= 2*m[1]*std::atan2(m_imag_norm, m[0])/m_imag_norm;
+            t_m_temp[1]= 2*m[2]*std::atan2(m_imag_norm, m[0])/m_imag_norm;
+            t_m_temp[2]= 2*m[3]*std::atan2(m_imag_norm, m[0])/m_imag_norm;
+
+            return t_m_temp;
+
+
+        };
+
+
+
+        Vec4f m_unitq;
+        Eigen::Quaternionf m_eigenq;
+        Vec4f m_normd;
+        Vec3f t_m;
 
 };
 
-struct PlaneHessian
+class PlaneHessian
 {
+public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
     static int instanceCounter;
     EFPlane* efPlane;
 
-    // S(3) group element, i.e., unit quaternion
-    Vec4f m; // plane parameters, unit quatonion
-    Vec4f m_zero; // initialization value, from planeNet
-    Vec4f m_backup; // backup state
-    Vec4f step;
-    Vec4f evalPT;
-
-
-    // s(3) Lie algebra vector, i.e., tangent vector
-    Vec3f t_m;
-    Vec3f t_m_zero;
-    Vec3f t_m_backup;
-    Vec3f t_step;
-
+    bool flaggedForMarginalization;
 
     int idx;
     float energyTH;
@@ -516,67 +574,62 @@ struct PlaneHessian
     std::vector<PointFrameResidual*> residuals;					// only contains good residuals (not OOB and not OUTLIER). Arbitrary order.
     std::pair<PointFrameResidual*, ResState> lastResiduals[2]; 	// contains information about residuals to the last two (!) frames. ([0] = latest, [1] = the one before).
 
+    inline const Plane_S3 &get_evalPT() const {
+        return evalPT;
+    }
+
+    inline const Vec3f &get_state_zero() const {
+        return t_m_zero;
+    }
+
+    inline const Vec3f &get_state() const {
+        return t_m;
+    }
+
+    Plane_S3 PRE_m_quaternion;
 
 
     void release();
-    PlaneHessian(const Plane* const rawPlane, CalibHessian* Hcalib);
+    PlaneHessian(const Plane* const rawPlane, CalibHessian* Hcalib, FrameHessian* host_fh){
+        instanceCounter++;
+        flaggedForMarginalization=false;
+        efPlane =0;
+        host = host_fh;
+
+
+    };
     //How to construct? When to construct?
 
-    inline void setMparam(Vec4f m_param){
-        m = m_param;
+    inline void setStateZero(Vec3f t_m_param){
+        t_m_zero = t_m_param;
     };
 
-    inline static Vec4f exp(const Vec3f t_m){
-        float t_m_norm = t_m.norm();
-
-        Vec4f m_temp;
-        m_temp[0] = std::cos(t_m_norm/2);
-        m_temp[1] = t_m[0]/t_m_norm*std::sin(t_m_norm/2);
-        m_temp[2] = t_m[1]/t_m_norm*std::sin(t_m_norm/2);
-        m_temp[3] = t_m[2]/t_m_norm*std::sin(t_m_norm/2);
-
-        return m_temp;
-
+    inline void setState(Vec3f t_m_param){
+        t_m = t_m_param;
     };
 
-    inline static Mat43f exp_jacobian(const Vec4f m, const Vec3f t_m){
-        float t_m_norm = t_m.norm();
-        float m00 = - std::sin(t_m_norm/2) /2 *t_m[0] /t_m_norm;
-        float m01 = - std::sin(t_m_norm/2) /2 *t_m[1] /t_m_norm;
-        float m02 = - std::sin(t_m_norm/2) /2 *t_m[2] /t_m_norm;
-
-        float m10 = (t_m_norm - t_m[0]*t_m[0]/t_m_norm + t_m[0]*t_m[0]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
-        float m11 = (-t_m[0]*t_m[1]/t_m_norm + t_m[0]*t_m[1]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
-        float m12 = (-t_m[0]*t_m[2]/t_m_norm + t_m[0]*t_m[2]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
-
-        float m20 = m11;
-        float m21 = (t_m_norm - t_m[1]*t_m[1]/t_m_norm + t_m[1]*t_m[1]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
-        float m22 = (-t_m[1]*t_m[2]/t_m_norm + t_m[1]*t_m[2]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
-
-        float m30 = m12;
-        float m31 = m22;
-        float m32 = (t_m_norm - t_m[2]*t_m[2]/t_m_norm + t_m[2]*t_m[2]/2*std::cos(t_m_norm/2)) /t_m_norm /t_m_norm;
-
-        Mat43f J_temp;
-        J_temp << m00, m01, m02, m10, m11, m12, m20, m21, m22, m30, m31, m32;
-
-        return J_temp;
+    inline void setEvalPT(const Plane_S3 & eval){
+        evalPT = eval;
     };
 
-    inline static Vec3f log(const Vec4f m){
-        float m_imag_norm = std::sqrt(m[1]*m[1] + m[2]*m[2] + m[3]*m[3]);
-
-        Vec3f t_m_temp;
-        t_m_temp[0]= 2*m[1]*std::atan2(m_imag_norm, m[0])/m_imag_norm;
-        t_m_temp[1]= 2*m[2]*std::atan2(m_imag_norm, m[0])/m_imag_norm;
-        t_m_temp[2]= 2*m[3]*std::atan2(m_imag_norm, m[0])/m_imag_norm;
-
-        return t_m_temp;
 
 
-    };
+
+
 
     inline ~PlaneHessian() {assert(efPlane==0); release(); instanceCounter--;}
+
+private:
+
+    // S(3) group element, i.e., unit quaternion
+    Plane_S3 evalPT; // evaluation point
+
+    // s(3) Lie algebra vector, i.e., tangent vector
+    Vec3f t_m;
+    Vec3f t_m_zero;
+    Vec3f t_m_backup;
+    Vec3f t_step;
+    Vec3f t_step_backup;
 
 
 };

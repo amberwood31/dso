@@ -201,6 +201,7 @@ void EnergyFunctional::accumulateAF_MT(MatXX &H, VecX &b, bool MT)
 {
 	if(MT)
 	{
+	    // todo not adapted to add plane yet
 		red->reduce(boost::bind(&AccumulatedTopHessianSSE::setZero, accSSE_top_A, nFrames,  _1, _2, _3, _4), 0, 0, 0);
 		red->reduce(boost::bind(&AccumulatedTopHessianSSE::addPointsInternal<0>,
 				accSSE_top_A, &allPoints, this,  _1, _2, _3, _4), 0, allPoints.size(), 50);
@@ -212,7 +213,13 @@ void EnergyFunctional::accumulateAF_MT(MatXX &H, VecX &b, bool MT)
 		accSSE_top_A->setZero(nFrames);
 		for(EFFrame* f : frames)
 			for(EFPoint* p : f->points)
-				accSSE_top_A->addPoint<0>(p,this);
+            {
+			    if (p->semanticFlag == 0.5f)// planeNet finished, and point is not on a plane
+                    accSSE_top_A->addPoint<0>(p,this);
+            }
+        for(EFFrame* f: frames)
+			for(EFPlane* pl :f->planes)
+			    accSSE_top_A->addPlane<0>(pl, this);
 		accSSE_top_A->stitchDoubleMT(red,H,b,this,false,false);
 		resInA = accSSE_top_A->nres[0];
 	}
@@ -223,6 +230,7 @@ void EnergyFunctional::accumulateLF_MT(MatXX &H, VecX &b, bool MT)
 {
 	if(MT)
 	{
+	    //todo not adapted to addplane yet
 		red->reduce(boost::bind(&AccumulatedTopHessianSSE::setZero, accSSE_top_L, nFrames,  _1, _2, _3, _4), 0, 0, 0);
 		red->reduce(boost::bind(&AccumulatedTopHessianSSE::addPointsInternal<1>,
 				accSSE_top_L, &allPoints, this,  _1, _2, _3, _4), 0, allPoints.size(), 50);
@@ -234,7 +242,13 @@ void EnergyFunctional::accumulateLF_MT(MatXX &H, VecX &b, bool MT)
 		accSSE_top_L->setZero(nFrames);
 		for(EFFrame* f : frames)
 			for(EFPoint* p : f->points)
-				accSSE_top_L->addPoint<1>(p,this);
+            {
+			    if (p->semanticFlag == 0.5f) // planeNet finished, and point is not on a plane
+			        accSSE_top_L->addPoint<1>(p, this);
+            }
+		for(EFFrame* f: frames)
+		    for(EFPlane* pl: f->planes)
+		        accSSE_top_L->addPlane<1>(pl, this);
 		accSSE_top_L->stitchDoubleMT(red,H,b,this,true,false);
 		resInL = accSSE_top_L->nres[0];
 	}
@@ -328,7 +342,7 @@ double EnergyFunctional::calcMEnergyF()
 	assert(EFIndicesValid);
 
 	VecX delta = getStitchedDeltaF();
-	return delta.dot(2*bM + HM*delta);
+	return delta.dot(2*bM + HM*delta); // todo, think about this more, this follows equ.(19) in the DSO paper
 }
 
 
@@ -529,17 +543,19 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 
 
 
-	if((int)fh->idx != (int)frames.size()-1)
+	if((int)fh->idx != (int)frames.size()-1) // No need to move things around if it's already the last frame, which means its blocks are at the bottom
 	{
 		int io = fh->idx*8+CPARS;	// index of frame to move to end
-		int ntail = 8*(nFrames-fh->idx-1);
+		int ntail = 8*(nFrames-fh->idx-1); // number of rows after the frame fh
 		assert((io+8+ntail) == nFrames*8+CPARS);
 
-		Vec8 bTmp = bM.segment<8>(io);
-		VecX tailTMP = bM.tail(ntail);
+		// move the b Vector corresponding to the frame fh to the bottom
+		Vec8 bTmp = bM.segment<8>(io); // b Vector corresponding to the frame fh
+		VecX tailTMP = bM.tail(ntail); // b Vector after the frame fh
 		bM.segment(io,ntail) = tailTMP;
 		bM.tail<8>() = bTmp;
 
+		// move the H matrix block corresponding to the frame fh to the bottom
 		MatXX HtmpCol = HM.block(0,io,odim,8);
 		MatXX rightColsTmp = HM.rightCols(ntail);
 		HM.block(0,io,odim,ntail) = rightColsTmp;
@@ -553,6 +569,7 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 
 
 //	// marginalize. First add prior here, instead of to active.
+// this is the prior pullig the affine brightness transfer function to zero, has nothing to do with other parameters, only the brightness parameter
     HM.bottomRightCorner<8,8>().diagonal() += fh->prior;
     bM.tail<8>() += fh->prior.cwiseProduct(fh->delta_prior);
 
@@ -560,7 +577,10 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 
 //	std::cout << std::setprecision(16) << "HMPre:\n" << HM << "\n\n";
 
-
+// compute the scale depending on the diagonal value
+// scale H and b with SVecI
+// later SVec will be used to scale the matrix back
+// this doesn't change the results, probably are due to some numerical issues
 	VecX SVec = (HM.diagonal().cwiseAbs()+VecX::Constant(HM.cols(), 10)).cwiseSqrt();
 	VecX SVecI = SVec.cwiseInverse();
 
@@ -576,9 +596,10 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 	Mat88 hpi = HMScaled.bottomRightCorner<8,8>();
 	hpi = 0.5f*(hpi+hpi);
 	hpi = hpi.inverse();
-	hpi = 0.5f*(hpi+hpi);
+	hpi = 0.5f*(hpi+hpi); // is this changing double to floats precisions? todo
 
 	// schur-complement!
+	// this follows equ.(17) and (18) in the DSO paper
 	MatXX bli = HMScaled.bottomLeftCorner(8,ndim).transpose() * hpi;
 	HMScaled.topLeftCorner(ndim,ndim).noalias() -= bli * HMScaled.bottomLeftCorner(8,ndim);
 	bMScaled.head(ndim).noalias() -= bli*bMScaled.tail<8>();
