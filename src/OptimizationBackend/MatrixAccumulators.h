@@ -88,6 +88,61 @@ private:
   }
 };
 
+template<int i, int j>
+class Accumulator3XX
+{
+public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+    Eigen::Matrix<float,i,j> A;
+    Eigen::Matrix<float,i,j> A1k;
+    Eigen::Matrix<float,i,j> A1m;
+    size_t num;
+
+    inline void initialize()
+    {
+        A.setZero();
+        A1k.setZero();
+        A1m.setZero();
+        num = numIn1 = numIn1k = numIn1m = 0;
+    }
+
+    inline void finish()
+    {
+        shiftUp(true);
+        num = numIn1 + numIn1k + numIn1m;
+    }
+
+
+    inline void update(const Eigen::Matrix<float,i,3> &L, const Eigen::Matrix<float,j,3> &R, const Eigen::Matrix<float,3,3>& M)
+    {
+        A += L*M*R.transpose();
+        numIn1++;
+        shiftUp(false);
+    }
+
+private:
+    float numIn1, numIn1k, numIn1m;
+
+    void shiftUp(bool force)
+    {
+        if(numIn1 > 1000 || force)
+        {
+            A1k += A;
+            A.setZero();
+            numIn1k+=numIn1;
+            numIn1=0;
+        }
+        if(numIn1k > 1000 || force)
+        {
+            A1m += A1k;
+            A1k.setZero();
+            numIn1m+=numIn1k;
+            numIn1k=0;
+        }
+    }
+};
+
 class Accumulator11
 {
 public:
@@ -234,6 +289,64 @@ private:
 		  numIn1k=0;
 	  }
   }
+};
+
+
+//todo would this break the SSE implementation?
+template<int i>
+class Accumulator3X
+{
+public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+    Eigen::Matrix<float,i,1> A;
+    Eigen::Matrix<float,i,1> A1k;
+    Eigen::Matrix<float,i,1> A1m;
+    size_t num;
+
+    inline void initialize()
+    {
+        A.setZero();
+        A1k.setZero();
+        A1m.setZero();
+        num = numIn1 = numIn1k = numIn1m = 0;
+    }
+
+    inline void finish()
+    {
+        shiftUp(true);
+        num = numIn1+numIn1k+numIn1m;
+    }
+
+
+    inline void update(const Eigen::Matrix<float,i,3> &L, const Eigen::Matrix<float,3,1> &R)
+    {
+        A += L*R;
+        numIn1++;
+        shiftUp(false);
+    }
+
+
+private:
+    float numIn1, numIn1k, numIn1m;
+
+    void shiftUp(bool force)
+    {
+        if(numIn1 > 1000 || force)
+        {
+            A1k += A;
+            A.setZero();
+            numIn1k+=numIn1;
+            numIn1=0;
+        }
+        if(numIn1k > 1000 || force)
+        {
+            A1m += A1k;
+            A1k.setZero();
+            numIn1m+=numIn1k;
+            numIn1k=0;
+        }
+    }
 };
 
 

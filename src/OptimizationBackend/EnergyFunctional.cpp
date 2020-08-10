@@ -262,6 +262,7 @@ void EnergyFunctional::accumulateSCF_MT(MatXX &H, VecX &b, bool MT)
 {
 	if(MT)
 	{
+	    //todo need to adapt to have planes
 		red->reduce(boost::bind(&AccumulatedSCHessianSSE::setZero, accSSE_bot, nFrames,  _1, _2, _3, _4), 0, 0, 0);
 		red->reduce(boost::bind(&AccumulatedSCHessianSSE::addPointsInternal,
 				accSSE_bot, &allPoints, true,  _1, _2, _3, _4), 0, allPoints.size(), 50);
@@ -272,7 +273,15 @@ void EnergyFunctional::accumulateSCF_MT(MatXX &H, VecX &b, bool MT)
 		accSSE_bot->setZero(nFrames);
 		for(EFFrame* f : frames)
 			for(EFPoint* p : f->points)
-				accSSE_bot->addPoint(p, true);
+            {
+			    if (p->semanticFlag == 0.5f)// planeNet finished, and point is not on a plane
+                    accSSE_bot->addPoint(p, true);
+
+            }
+        for(EFFrame* f: frames)
+            for(EFPlane* pl: f->planes)
+                accSSE_bot->addPlane(pl);
+
 		accSSE_bot->stitchDoubleMT(red, H, b,this,false);
 	}
 }

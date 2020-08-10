@@ -177,6 +177,8 @@ public:
     Mat33f Hpp_accLF;
     MatC3f Hcp_accLF;
     Vec3f bp_accLF;
+    Vec3f bpSumF;
+    Mat33f HpiF;
 
 
 

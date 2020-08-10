@@ -31,6 +31,54 @@
 namespace dso
 {
 
+void AccumulatedSCHessianSSE::addPlane(EFPlane* pl, int tid)
+{
+    int ngoodres = 0;
+    for(EFResidual* r : pl->residualsAll){
+        if(r->isActive())
+            ngoodres++;
+    }
+    if(ngoodres==0){
+        pl->bpSumF = Vec3f::Zero();
+        pl->HpiF = Mat33f::Zero();
+        return;
+    }
+
+    //todo: need to change this if prior is added, check how does the prior works
+    Mat33f H = pl->Hpp_accAF + pl->Hpp_accLF;
+
+    //todo: would there be any numerical issue here when inversing the matrix? need to double check
+    //todo: do I need to do scaling like for HM in marginalizeFrame
+    pl->HpiF = H.inverse();
+
+    //todo: need to further add the prior if shiftpriortozero, which exists in the addpoint. need to investigate
+    pl->bpSumF = pl->bp_accAF + pl->bp_accLF;
+
+    MatC3f Hcp = pl->Hcp_accAF + pl->Hcp_accLF; // off-diagonal Hessian terms corresponding to camera parameters and idepth
+    accHpcc[tid].update(Hcp,Hcp,pl->HpiF);
+    accbpc[tid].update(Hcp, pl->HpiF*pl->bpSumF);
+
+    //todo how to assert finite for matrix?
+
+    int nFrames2 = nframes[tid]*nframes[tid];
+    for(EFResidual* r1 : pl->residualsAll)
+    {
+        if(!r1->isActive()) continue;
+        int r1ht = r1->hostIDX + r1->targetIDX*nframes[tid];
+
+        for(EFResidual* r2 : pl->residualsAll) // access the residuals of same point, maximum quantity is nFrames when points are observed in all frames
+        {
+            if(!r2->isActive()) continue;
+
+            accDp[tid][r1ht+r2->targetIDX*nFrames2].update(r1->JpJdF, r2->JpJdF, pl->HpiF);
+        }
+
+        accEp[tid][r1ht].update(r1->JpJdF, Hcp, pl->HpiF);
+        accEBp[tid][r1ht].update(r1->JpJdF,pl->HpiF*pl->bpSumF);
+    }
+
+}
+
 void AccumulatedSCHessianSSE::addPoint(EFPoint* p, bool shiftPriorToZero, int tid)
 {
 	int ngoodres = 0;
@@ -39,8 +87,12 @@ void AccumulatedSCHessianSSE::addPoint(EFPoint* p, bool shiftPriorToZero, int ti
 	{
 		p->HdiF=0;
 		p->bdSumF=0;
-		p->data->idepth_hessian=0;
-		p->data->maxRelBaseline=0;
+
+		//todo what's the use of these two variables
+        {
+            p->data->idepth_hessian=0;
+            p->data->maxRelBaseline=0;
+        }
 		return;
 	}
 

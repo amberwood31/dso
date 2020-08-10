@@ -35,6 +35,7 @@ namespace dso
 {
 
 class EFPoint;
+class EFPlane;
 class EnergyFunctional;
 
 
@@ -50,6 +51,9 @@ public:
 			accEB[i]=0;
 			accD[i]=0;
 			nframes[i]=0;
+			accEp[i]=0;
+			accEBp[i]=0;
+			accDp[i]=0;
 		}
 	};
 	inline ~AccumulatedSCHessianSSE()
@@ -59,6 +63,9 @@ public:
 			if(accE[i] != 0) delete[] accE[i];
 			if(accEB[i] != 0) delete[] accEB[i];
 			if(accD[i] != 0) delete[] accD[i];
+			if(accEp[i] != 0) delete[] accEp[i];
+			if(accEBp[i] != 0) delete[] accEBp[i];
+			if(accDp[i] != 0) delete[] accDp[i];
 		}
 	};
 
@@ -69,25 +76,41 @@ public:
 			if(accE[tid] != 0) delete[] accE[tid];
 			if(accEB[tid] != 0) delete[] accEB[tid];
 			if(accD[tid] != 0) delete[] accD[tid];
+			if(accEp[tid] != 0) delete[] accEp[tid];
+			if(accEBp[tid] != 0) delete[] accEBp[tid];
+			if(accDp[tid] != 0) delete[] accDp[tid];
 			accE[tid] = new AccumulatorXX<8,CPARS>[n*n];
 			accEB[tid] = new AccumulatorX<8>[n*n];
 			accD[tid] = new AccumulatorXX<8,8>[n*n*n];
+			accEp[tid] = new Accumulator3XX<8,CPARS>[n*n];
+			accEBp[tid] = new Accumulator3X<8>[n*n];
+            accDp[tid] = new Accumulator3XX<8,8>[n*n*n];
 		}
 		accbc[tid].initialize();
 		accHcc[tid].initialize();
+
+		accbpc[tid].initialize();
+		accHpcc[tid].initialize();
 
 		for(int i=0;i<n*n;i++)
 		{
 			accE[tid][i].initialize();
 			accEB[tid][i].initialize();
+			accEp[tid][i].initialize();
+			accEBp[tid][i].initialize();
 
-			for(int j=0;j<n;j++)
-				accD[tid][i*n+j].initialize();
+			for(int j=0;j<n;j++){
+                accD[tid][i*n+j].initialize();
+                accDp[tid][i*n+j].initialize();
+			}
+
+
 		}
 		nframes[tid]=n;
 	}
 	void stitchDouble(MatXX &H_sc, VecX &b_sc, EnergyFunctional const * const EF, int tid=0);
 	void addPoint(EFPoint* p, bool shiftPriorToZero, int tid=0);
+	void addPlane(EFPlane* pl, int tid=0);
 
 
 	void stitchDoubleMT(IndexThreadReduce<Vec10>* red, MatXX &H, VecX &b, EnergyFunctional const * const EF, bool MT)
@@ -139,6 +162,12 @@ public:
 	AccumulatorXX<CPARS,CPARS> accHcc[NUM_THREADS];
 	AccumulatorX<CPARS> accbc[NUM_THREADS];
 	int nframes[NUM_THREADS];
+
+	Accumulator3XX<CPARS,CPARS> accHpcc[NUM_THREADS];
+	Accumulator3X<CPARS> accbpc[NUM_THREADS];
+	Accumulator3XX<8,8>* accDp[NUM_THREADS];
+	Accumulator3XX<8,CPARS>* accEp[NUM_THREADS];
+	Accumulator3X<8>* accEBp[NUM_THREADS];
 
 
 	void addPointsInternal(
