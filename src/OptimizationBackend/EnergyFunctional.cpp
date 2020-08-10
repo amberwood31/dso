@@ -290,7 +290,7 @@ void EnergyFunctional::resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
 {
 	assert(x.size() == CPARS+nFrames*8);
 
-	VecXf xF = x.cast<float>(); //todo question: why cast it again here, it's already eigen float vector
+	VecXf xF = x.cast<float>(); //cast double to float
 	HCalib->step = - x.head<CPARS>();
 
 	Mat18f* xAd = new Mat18f[nFrames*nFrames];
@@ -306,12 +306,57 @@ void EnergyFunctional::resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
 	}
 
 	if(MT)
+	    //todo need to adapt to have plane
 		red->reduce(boost::bind(&EnergyFunctional::resubstituteFPt,
 						this, cstep, xAd,  _1, _2, _3, _4), 0, allPoints.size(), 50);
 	else
-		resubstituteFPt(cstep, xAd, 0, allPoints.size(), 0,0);
+    {
+        resubstituteFPt(cstep, xAd, 0, allPoints.size(), 0,0);
+        resubstituteFPlt(cstep, xAd, 0, allPlanes.size(), 0,0);
+
+
+    }
+
 
 	delete[] xAd;
+}
+
+void EnergyFunctional::resubstituteFPlt(const VecCf &xc, Mat18f *xAd, int min, int max, Vec10 *stats, int tid)
+{
+    for(int k=min;k<max;k++)
+    {
+        EFPlane* pl = allPlanes[k];
+
+        int ngoodres = 0;
+        for (EFResidual* r: pl->residualsAll)
+            if(r->isActive())
+                ngoodres++;
+
+        if(ngoodres==0){
+            Vec3f temp = Vec3f::Zero();
+            pl->data->setStep(temp);
+            continue;
+        }
+
+        // todo need to review the logic here
+        Vec3f b = pl->bpSumF;
+        b = b - (pl->Hcp_accLF + pl->Hcp_accAF).transpose()*xc;
+
+        for (EFResidual* r : pl->residualsAll)
+        {
+            if(!r->isActive()) continue;
+            b = b- xAd[r->hostIDX*nFrames + r->targetIDX]*r->JplJdF;
+
+        }
+
+        //todo check whether it's this or its transpose
+        Vec3f temp_step = -pl->HpiF*b;
+        pl->data->setStep(temp_step);
+
+        //todo how to check whether vector elements are all finite
+
+    }
+
 }
 
 void EnergyFunctional::resubstituteFPt(
@@ -963,6 +1008,7 @@ void EnergyFunctional::makeIDX()
 		frames[idx]->idx = idx;
 
 	allPoints.clear();
+	allPlanes.clear();
 
 	for(EFFrame* f : frames)
 		for(EFPoint* p : f->points)
@@ -974,6 +1020,17 @@ void EnergyFunctional::makeIDX()
 				r->targetIDX = r->target->idx;
 			}
 		}
+
+    for(EFFrame* f : frames)
+        for(EFPlane* pl : f->planes)
+        {
+            allPlanes.push_back(pl);
+            for(EFResidual* r : pl->residualsAll)
+            {
+                r->hostIDX = r->host->idx;
+                r->targetIDX = r->target->idx;
+            }
+        }
 
 
 	EFIndicesValid=true;

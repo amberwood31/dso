@@ -70,11 +70,12 @@ void AccumulatedSCHessianSSE::addPlane(EFPlane* pl, int tid)
         {
             if(!r2->isActive()) continue;
 
-            accDp[tid][r1ht+r2->targetIDX*nFrames2].update(r1->JpJdF, r2->JpJdF, pl->HpiF);
+            //todo this seems really error prone, needs to review
+            accDp[tid][r1ht+r2->targetIDX*nFrames2].update(r1->JplJdF, r2->JplJdF, pl->HpiF);
         }
 
-        accEp[tid][r1ht].update(r1->JpJdF, Hcp, pl->HpiF);
-        accEBp[tid][r1ht].update(r1->JpJdF,pl->HpiF*pl->bpSumF);
+        accEp[tid][r1ht].update(r1->JplJdF, Hcp, pl->HpiF);
+        accEBp[tid][r1ht].update(r1->JplJdF,pl->HpiF*pl->bpSumF);
     }
 
 }

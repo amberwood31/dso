@@ -613,6 +613,10 @@ public:
     };
 
 
+    inline void setStep(const Vec3f t_m_param){
+        t_step = t_m_param;
+    }
+
 
 
 

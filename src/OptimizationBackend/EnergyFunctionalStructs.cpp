@@ -47,6 +47,8 @@ void EFResidual::takeDataF()
 		JpJdF[i] = J->Jpdxi[0][i]*JI_JI_Jd[0] + J->Jpdxi[1][i] * JI_JI_Jd[1];
 
 	JpJdF.segment<2>(6) = J->JabJIdx*J->Jpdd;
+
+	JplJdF=JpJdF*J->JddM.transpose();
 }
 
 

@@ -89,6 +89,8 @@ public:
 	VecNRf res_toZeroF;
 	Vec8f JpJdF;
 
+	Mat83f JplJdF;
+
 
 	// status.
 	bool isLinearized;

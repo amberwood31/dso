@@ -130,6 +130,7 @@ private:
 
 	void resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT);
     void resubstituteFPt(const VecCf &xc, Mat18f* xAd, int min, int max, Vec10* stats, int tid);
+    void resubstituteFPlt(const VecCf &xc, Mat18f* xAd, int min, int max, Vec10* stats, int tid);
 
 	void accumulateAF_MT(MatXX &H, VecX &b, bool MT);
 	void accumulateLF_MT(MatXX &H, VecX &b, bool MT);
@@ -158,6 +159,7 @@ private:
 	AccumulatedSCHessianSSE* accSSE_bot;
 
 	std::vector<EFPoint*> allPoints;
+	std::vector<EFPlane*> allPlanes;
 	std::vector<EFPoint*> allPointsToMarg;
 
 	float currentLambda;
