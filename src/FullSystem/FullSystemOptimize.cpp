@@ -267,9 +267,15 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 
 			for (PlaneHessian* plh: fh->planeHessians)
             {
-			    plh->setMparam(plh->m_backup + stepfacM*plh->step);
-			    sumM += plh->step.squaredNorm();
+			    plh->doStep(stepfacM);
+			    sumM += plh->getStep().squaredNorm();
 			    numMID++;
+
+			    for (PointHessian* plp: plh->pointHessians)
+                {
+			        // points that are the plane are still updated, but they are not part of the optimization formula, therefore their updating step size is not checked later
+			        plp->setIdepthFromPlane(plh->getState(), &Hcalib);
+                }
 
             }
 
@@ -282,17 +288,6 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
                     numID++;
                     ph->setIdepthZero(ph->idepth_backup + stepfacD*ph->step);
                 }
-			    else if (ph->semantic_flag != 0.0f){ // 0.0f: planeNet not finished
-			        Vec4f m_new = fh->planeHessians.at((int)ph->semantic_flag-1)->m;
-                    float idepth_new = ((ph->u-Hcalib.cxl())*m_new[0]*Hcalib.fyl()+(ph->v-Hcalib.cyl())*m_new[1]*Hcalib.fxl()+Hcalib.fxl()*Hcalib.fyl()*m_new[2]) * Hcalib.fxli() * Hcalib.fyli() / m_new[3]; //todo review: this is super error prone
-                    ph->setIdepth(idepth_new);
-
-                    // these points are NOT being optimized directly, their states are just stored so that other Jacobians can be computed easily
-                    // is it necessary to sum them here? //todo
-
-			    }
-
-
 
 			}
 		}
@@ -319,7 +314,7 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 	EFDeltaValid=false;
 	setPrecalcValues();
 
-
+        // early break conditions: if solution doesn't change much , break
         // todo: How to set threshold on plane parameter updates?
         //  sumID is the step, sumNID is the backup idepth. Why set threshold on the backup idepth * translation while setting threshold on step of A, B, R, T?
 	return sqrtf(sumA) < 0.0005*setting_thOptIterations &&
@@ -379,7 +374,7 @@ void FullSystem::backupState(bool backupLastStep)
 			for(PointHessian* ph : fh->pointHessians)
 				ph->idepth_backup = ph->idepth;
 			for(PlaneHessian* plh : fh->planeHessians)
-			    plh->m_backup = plh->m;
+			    plh-> backupState();
 		}
 	}
 }

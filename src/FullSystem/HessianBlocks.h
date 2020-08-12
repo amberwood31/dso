@@ -461,6 +461,11 @@ class Plane_S3{
 
         };
 
+        inline const Vec4f& get_normd()
+        {
+            return m_normd;
+        }
+
         inline void set_unitq(const Vec4f & input){
             assert(fabs(input.norm()-1.0f) < epsilon);
             m_unitq = input;
@@ -617,8 +622,22 @@ public:
         t_step = t_m_param;
     }
 
+    inline Vec3f getStep(){
+        return t_step;
+    }
+
+    inline Plane_S3& getState(){
+        return state;
+    }
 
 
+    inline void doStep(float stepfactor = 1.0f){
+        state = evalPT.oplus(t_step*stepfactor);
+    }
+
+    inline void backupState(){
+        state_backup = state;
+    }
 
 
     inline ~PlaneHessian() {assert(efPlane==0); release(); instanceCounter--;}
@@ -627,6 +646,8 @@ private:
 
     // S(3) group element, i.e., unit quaternion
     Plane_S3 evalPT; // evaluation point
+    Plane_S3 state;
+    Plane_S3 state_backup;
 
     // s(3) Lie algebra vector, i.e., tangent vector
     Vec3f t_m;
@@ -683,6 +704,21 @@ struct PointHessian
         this->idepth_scaled = SCALE_IDEPTH * idepth;
         this->idepth = idepth;
     }
+
+    inline void setIdepthFromPlane(Plane_S3& plane_state, CalibHessian* HCalib ){
+        assert(semantic_flag!= 0.0f && semantic_flag!=0.5f);
+        const Vec4f& plane_normd = plane_state.get_normd();
+
+        // todo review this formula
+        float temp = ((u-HCalib->cxl())*plane_normd[0]*HCalib->fyl()
+            +(v-HCalib->cyl())*plane_normd[1]*HCalib->fxl()+HCalib->fxl()*HCalib->fyl()*plane_normd[2])*HCalib->fxli()*HCalib->fyli()/plane_normd[3];
+
+        idepth_scaled = SCALE_IDEPTH * temp;
+        idepth = temp;
+
+
+    }
+
 	inline void setIdepthScaled(float idepth_scaled) {
 		this->idepth = SCALE_IDEPTH_INVERSE * idepth_scaled;
 		this->idepth_scaled = idepth_scaled;
