@@ -312,7 +312,7 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 
 
 	EFDeltaValid=false;
-	setPrecalcValues();
+	setPrecalcValues(); // EFDeltaValid is set to true again here
 
         // early break conditions: if solution doesn't change much , break
         // todo: How to set threshold on plane parameter updates?
@@ -397,7 +397,7 @@ void FullSystem::loadSateBackup()
 
 
 	EFDeltaValid=false;
-	setPrecalcValues();
+	setPrecalcValues(); // EFDeltaValid is set to True again here
 }
 
 
@@ -579,7 +579,7 @@ float FullSystem::optimize(int mnumOptIts)
 	EFDeltaValid=false;
 	EFAdjointsValid=false;
 	ef->setAdjointsF(&Hcalib);
-	setPrecalcValues();
+	setPrecalcValues(); // EFDeltaValid is set to true again here
 
 
 

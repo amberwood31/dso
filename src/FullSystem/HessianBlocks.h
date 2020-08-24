@@ -694,7 +694,7 @@ struct PointHessian
 	float maxRelBaseline;
 	int numGoodResiduals;
 
-	enum PtStatus {ACTIVE=0, INACTIVE, OUTLIER, OOB, MARGINALIZED};
+	enum PtStatus {ACTIVE=0, INACTIVE, P_OUTLIER, P_OOB, MARGINALIZED};
 	PtStatus status;
 
     inline void setPointStatus(PtStatus s) {status=s;}
@@ -747,18 +747,20 @@ struct PointHessian
 		{
 			if(r->state_state != ResState::IN) continue;
 			for(FrameHessian* k : toMarg)
-				if(r->target == k) visInToMarg++;
+				if(r->target == k) visInToMarg++;// this counts the number of inlier residuals that are observed in marginalized frame
 		}
 		if((int)residuals.size() >= setting_minGoodActiveResForMarg &&
 				numGoodResiduals > setting_minGoodResForMarg+10 &&
 				(int)residuals.size()-visInToMarg < setting_minGoodActiveResForMarg)
 			return true;
+		// return true if Not enough residuals left after removing the residuals that are observed in marginalized frames
 
 
 
 
 
 		if(lastResiduals[0].second == ResState::OOB) return true;
+		// if latest residual is of state OOB, return true
 		if(residuals.size() < 2) return false;
 		if(lastResiduals[0].second == ResState::OUTLIER && lastResiduals[1].second == ResState::OUTLIER) return true;
 		return false;

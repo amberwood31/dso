@@ -182,7 +182,7 @@ private:
 	void activatePoints();
 	void activatePointsMT();
 	void activatePointsOldFirst();
-	void flagPointsForRemoval();
+	void flagPointsForRemoval(); // if flags both points and planes
 	void makeNewTraces(FrameHessian* newFrame, float* gtDepth);
 	void initializeFromInitializer(FrameHessian* newFrame);
 	void flagFramesForMarginalization(FrameHessian* newFH);
@@ -273,7 +273,7 @@ private:
 	PixelSelector* pixelSelector;
 	CoarseDistanceMap* coarseDistanceMap;
 
-	std::vector<FrameHessian*> frameHessians;	// ONLY changed in marginalizeFrame and addFrame.
+	std::vector<FrameHessian*> frameHessians;	// changed in initializeFromIntializer, makeKeyFrame, marginalizeFrame.
 	std::vector<PointFrameResidual*> activeResiduals;
 	float currentMinActDist;
 

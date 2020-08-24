@@ -106,6 +106,9 @@ float setting_reTrackThreshold = 1.5; // (larger = re-track more often)
 int   setting_minGoodActiveResForMarg=3;
 int   setting_minGoodResForMarg=4;
 
+/* require some minimum number of good points for a plane to become valid */
+int   setting_minGoodPointsForPlane=3;
+
 
 
 

@@ -81,10 +81,16 @@ public:
 	EFPlane* insertPlane(PlaneHessian* plh);
 
 	void dropResidual(EFResidual* r);
+	void dropPlaneResidual(EFResidual* r);
 	void marginalizeFrame(EFFrame* fh);
 	void removePoint(EFPoint* ph);
 
+	void removePlane(EFPlane* pl);
 
+
+
+	void marginalizePlanesF();
+	void dropPlanesF();
 
 	void marginalizePointsF();
 	void dropPointsF();
@@ -122,7 +128,7 @@ public:
 	  Eigen::Vector2i,
 	  std::less<uint64_t>,
 	  Eigen::aligned_allocator<std::pair<const uint64_t, Eigen::Vector2i>>
-	  > connectivityMap;
+	  > connectivityMap; // todo review, why is aligned_allocator needed? Vector2i is not vectorizable
 
 private:
 
@@ -161,6 +167,7 @@ private:
 	std::vector<EFPoint*> allPoints;
 	std::vector<EFPlane*> allPlanes;
 	std::vector<EFPoint*> allPointsToMarg;
+	std::vector<EFPlane*> allPlanesToMarg;
 
 	float currentLambda;
 };

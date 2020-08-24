@@ -80,7 +80,7 @@ CoarseInitializer::~CoarseInitializer()
 
 bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IOWrap::Output3DWrapper*> &wraps)
 {
-	newFrame = newFrameHessian;
+	newFrame = newFrameHessian; // should be an empty object at this point
 
     for(IOWrap::Output3DWrapper* ow : wraps)
         ow->pushLiveFrame(newFrameHessian);
@@ -119,7 +119,7 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
 
 
 	Vec3f latestRes = Vec3f::Zero();
-	for(int lvl=pyrLevelsUsed-1; lvl>=0; lvl--)
+	for(int lvl=pyrLevelsUsed-1; lvl>=0; lvl--) // starts from coarsest level
 	{
 
 
@@ -325,7 +325,7 @@ void CoarseInitializer::debugPlot(int lvl, std::vector<IOWrap::Output3DWrapper*>
         ow->pushDepthImage(&iRImg);
 }
 
-// calculates residual, Hessian and Hessian-block neede for re-substituting depth.
+// calculates residual, Hessian and Hessian-block needed for re-substituting depth.
 Vec3f CoarseInitializer::calcResAndGS(
 		int lvl, Mat88f &H_out, Vec8f &b_out,
 		Mat88f &H_out_sc, Vec8f &b_out_sc,

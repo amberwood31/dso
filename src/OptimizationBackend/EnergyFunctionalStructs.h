@@ -80,6 +80,7 @@ public:
 	PointFrameResidual* data;
 	int hostIDX, targetIDX;
 	EFPoint* point;
+	EFPlane* plane;
 	EFFrame* host;
 	EFFrame* target;
 	int idxInAll;
@@ -181,8 +182,6 @@ public:
     Vec3f bp_accLF;
     Vec3f bpSumF;
     Mat33f HpiF;
-
-
 
 };
 

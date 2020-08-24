@@ -109,6 +109,7 @@ extern float setting_reTrackThreshold;
 extern int   setting_minGoodActiveResForMarg;
 extern int   setting_minGoodResForMarg;
 extern int   setting_minInlierVotesForMarg;
+extern int   setting_minGoodPointsForPlane;
 
 
 

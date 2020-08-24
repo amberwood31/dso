@@ -55,7 +55,8 @@ PointHessian* FullSystem::optimizeImmaturePoint(
 	int nres = 0;
 	for(FrameHessian* fh : frameHessians)
 	{
-		if(fh != point->host)
+        // assumed this immaturepoint is observed on every frame except its host frame
+        if(fh != point->host)
 		{
 			residuals[nres].state_NewEnergy = residuals[nres].state_energy = 0;
 			residuals[nres].state_NewState = ResState::OUTLIER;
@@ -71,7 +72,7 @@ PointHessian* FullSystem::optimizeImmaturePoint(
 	float lastEnergy = 0;
 	float lastHdd=0;
 	float lastbd=0;
-	float currentIdepth=(point->idepth_max+point->idepth_min)*0.5f;
+	float currentIdepth=(point->idepth_max+point->idepth_min)*0.5f;// this idepth is used as initialization value here
 
 
 
@@ -100,7 +101,7 @@ PointHessian* FullSystem::optimizeImmaturePoint(
 	for(int iteration=0;iteration<setting_GNItsOnPointActivation;iteration++)
 	{
 		float H = lastHdd;
-		H *= 1+lambda;
+		H *= 1+lambda; // Errr, this is obviously Levenberg, not Gauss Newton... despite that the setting is called GN
 		float step = (1.0/H) * lastbd;
 		float newIdepth = currentIdepth - step;
 
@@ -150,7 +151,7 @@ PointHessian* FullSystem::optimizeImmaturePoint(
 	if(!std::isfinite(currentIdepth))
 	{
 		printf("MAJOR ERROR! point idepth is nan after initialization (%f).\n", currentIdepth);
-		return (PointHessian*)((long)(-1));		// yeah I'm like 99% sure this is OK on 32bit systems.
+		return (PointHessian*)((long)(-1));		// yeah I'm like 99% sure this is OK on 32bit systems. // I don't know what's happening here
 	}
 
 

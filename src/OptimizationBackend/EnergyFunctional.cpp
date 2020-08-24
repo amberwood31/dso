@@ -517,7 +517,7 @@ EFFrame* EnergyFunctional::insertFrame(FrameHessian* fh, CalibHessian* Hcalib)
 	EFAdjointsValid=false;
 	EFDeltaValid=false;
 
-	setAdjointsF(Hcalib);
+	setAdjointsF(Hcalib); // EFAdjointsValid is set to true here
 	makeIDX();
 
 
@@ -557,6 +557,24 @@ EFPlane* EnergyFunctional::insertPlane(PlaneHessian* plh)
 
 }
 
+void EnergyFunctional::dropPlaneResidual(EFResidual* r)
+{
+    EFPlane* pl = r->plane;
+    assert(r == pl->residualsAll[r->idxInAll]); //todo review check whether this idxInAll is adapted to plane
+
+    pl->residualsAll[r->idxInAll] = pl->residualsAll.back();
+    pl->residualsAll[r->idxInAll]->idxInAll = r->idxInAll;// todo review why is this line necessary?
+    pl->residualsAll.pop_back();
+
+    //todo review there are some statistics here. Add when it's necessary
+
+    connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][0]--;
+
+    nResiduals--;
+    r->data->efResidual = 0;
+    delete r;
+
+}
 
 void EnergyFunctional::dropResidual(EFResidual* r)
 {
@@ -701,7 +719,60 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 }
 
 
+void EnergyFunctional::
+marginalizePlanesF()
+{
+    assert(EFDeltaValid);
+    assert(EFAdjointsValid);
+    assert(EFIndicesValid);
 
+    allPlanesToMarg.clear();
+    for (EFFrame* f : frames)
+    {
+        for (int i=0;i<(int)f->planes.size();i++)
+        {
+            EFPlane* pl = f->planes[i];
+            if (pl->stateFlag == EFPlaneStatus::PLS_MARGINALIZE)
+            {
+                //todo check whether need to add factor to priorF like in marginalizePointsF
+                for (EFResidual* r : pl->residualsAll)
+                {
+
+                    if(r->isActive())
+                        connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][1]++; // this records the marginalized residuals
+                    allPlanesToMarg.push_back(pl);
+                }
+            }
+
+        }
+    }
+
+    accSSE_bot->setZero(nFrames); // meaning this part is not accumulated with the part in accumulateSCF_MT, depite using the same accumulator object
+    accSSE_top_A->setZero(nFrames);
+    for (EFPlane* pl : allPlanesToMarg)
+    {
+        accSSE_top_A->addPlane<2>(pl,this); //todo check whether addPlane with mode 2 is correct in this context
+        accSSE_bot->addPlane(pl, false);
+        removePlane(pl);
+
+    }
+    MatXX M, Msc;
+    VecX Mb, Mbsc;
+    accSSE_top_A->stitchDouble(M, Mb, this, false, false);
+    accSSE_bot->stitchDouble(Msc, Mbsc, this);
+
+    resInM+= accSSE_top_A->nres[0];
+
+    MatXX H = M-Msc;
+    VecX b = Mb-Mbsc;
+
+    HM += H; // todo check the effect of setting_margWeightFac
+    bM += b;
+
+    EFIndicesValid = false;
+    makeIDX();
+
+}
 
 void EnergyFunctional::marginalizePointsF()
 {
@@ -785,6 +856,26 @@ void EnergyFunctional::dropPointsF()
 
 	EFIndicesValid = false;
 	makeIDX();
+}
+
+void EnergyFunctional::removePlane(EFPlane *pl)
+{
+    for (EFResidual* r : pl->residualsAll)
+        dropPlaneResidual(r);
+
+    EFFrame* h = pl->host;
+    h->planes[pl->idxInPlanes] = h->planes.back();
+    h->planes[pl->idxInPlanes]->idxInPlanes = pl->idxInPlanes;
+    h->planes.pop_back();
+
+    nPlanes--;
+    pl->data->efPlane = 0;
+
+    EFIndicesValid = false;
+
+    delete pl;
+
+
 }
 
 

@@ -664,7 +664,14 @@ void FullSystem::activatePointsMT()
 		{
 			newpoint->host->immaturePoints[ph->idxInImmaturePoints]=0;
 			newpoint->host->pointHessians.push_back(newpoint);
-			ef->insertPoint(newpoint);
+			// todo how to make sure this newly constructed pointhessian also has semantic_flag?
+			if (newpoint->semantic_flag == 0.5f){
+                ef->insertPoint(newpoint);
+			}
+			else if (newpoint->semantic_flag != 0.0f){
+			    ef->insertPlane()
+			}
+
 			for(PointFrameResidual* r : newpoint->residuals)
 				ef->insertResidual(r);
 			assert(newpoint->efPoint != 0);
@@ -729,7 +736,7 @@ void FullSystem::flagPointsForRemoval()
 
 	//ef->setAdjointsF();
 	//ef->setDeltaF(&Hcalib);
-	int flag_oob=0, flag_in=0, flag_inin=0, flag_nores=0;
+	int flag_oob=0, flag_in=0, flag_inin=0, flag_nores=0; // this seems to be for debugging only since the counter values are not used
 
 	for(FrameHessian* host : frameHessians)		// go through all active frames
 	{
@@ -741,7 +748,12 @@ void FullSystem::flagPointsForRemoval()
 			if(ph->idepth_scaled < 0 || ph->residuals.size()==0)
 			{
 				host->pointHessiansOut.push_back(ph);
-				ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
+
+				ph->setPointStatus(PointHessian::P_OOB);
+				if (! ph->efPoint){// if this pointer is 0, this point is on a plane and exists in the system matrix as a EFplane
+                    ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
+                }
+
 				host->pointHessians[i]=0;
 				flag_nores++;
 			}
@@ -769,12 +781,19 @@ void FullSystem::flagPointsForRemoval()
                     if(ph->idepth_hessian > setting_minIdepthH_marg)
 					{
 						flag_inin++;
-						ph->efPoint->stateFlag = EFPointStatus::PS_MARGINALIZE;
+                        ph->setPointStatus(PointHessian::MARGINALIZED);
+						if (!ph->efPoint){
+                            ph->efPoint->stateFlag = EFPointStatus::PS_MARGINALIZE;
+                        }
 						host->pointHessiansMarginalized.push_back(ph);
 					}
 					else
 					{
-						ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
+                        ph->setPointStatus(PointHessian::P_OOB);
+					    if (!ph->efPoint){
+                            ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
+					    }
+
 						host->pointHessiansOut.push_back(ph);
 					}
 
@@ -783,7 +802,10 @@ void FullSystem::flagPointsForRemoval()
 				else
 				{
 					host->pointHessiansOut.push_back(ph);
-					ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
+                    ph->setPointStatus(PointHessian::P_OOB);
+					if (!ph->efPoint){
+                        ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
+					}
 
 
 					//printf("drop point in frame %d (%d goodRes, %d activeRes)\n", ph->host->idx, ph->numGoodResiduals, (int)ph->residuals.size());
@@ -793,16 +815,41 @@ void FullSystem::flagPointsForRemoval()
 			}
 		}
 
+        for(int i=0;i<(int)host->pointHessians.size();i++)
+        {
+            if(host->pointHessians[i]==0)
+            {
+                host->pointHessians[i] = host->pointHessians.back();
+                host->pointHessians.pop_back();
+                i--;
+            }
+        }
 
-		for(int i=0;i<(int)host->pointHessians.size();i++)
-		{
-			if(host->pointHessians[i]==0)
-			{
-				host->pointHessians[i] = host->pointHessians.back();
-				host->pointHessians.pop_back();
-				i--;
-			}
+
+		for (PlaneHessian* pl:host->planeHessians){
+
+		    if (host->flaggedForMarginalization)
+            {
+		        //todo review: whether to use number of good points of the value of minIdepthH to decide marginalize or drop?
+                int good_point = 0; // counter for points that haven't been removed or marginalized
+                for (PointHessian* p: pl->pointHessians){
+                    if ((p->status != PointHessian::MARGINALIZED) && (p->status != PointHessian::P_OOB)){
+                        good_point++;
+                    }
+                }
+
+                if (good_point > setting_minGoodPointsForPlane){
+                    pl->efPlane->stateFlag = EFPlaneStatus::PLS_MARGINALIZE;
+                }
+                else{
+                    pl->efPlane->stateFlag = EFPlaneStatus::PLS_DROP;
+                }
+
+            }
+
 		}
+
+
 	}
 
 }
@@ -857,7 +904,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 			coarseInitializer->setFirst(&Hcalib, fh);
 
 			{   // run planeNet here
-			    // should consider make this another thread //todo
+			    // todo should consider make this another thread
                 if (planeInitializer->detectPlane(image->image)){
                     std::cout<< "planeNet successfully done" << std::endl;
 
@@ -877,16 +924,16 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 		}
 		else
 		{
-			// if still initializing
+			// if not successfully initialized
 			fh->shell->poseValid = false;
 			delete fh;
 		}
 		return;
+		// this splits the control flow of this function into two different, no overlapping procedures: initialization and after-initialization
 	}
 	else	// do front-end operation.
 	{
 
-	    std::cout << "number of frames: " << frameHessians.size() << std::endl;
 		// =========================== SWAP tracking reference?. =========================
 		if(coarseTracker_forNewKF->refFrameID > coarseTracker->refFrameID)
 		{
@@ -1098,7 +1145,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 	frameHessians.push_back(fh);
 	fh->frameID = allKeyFramesHistory.size();
 	allKeyFramesHistory.push_back(fh->shell);
-	ef->insertFrame(fh, &Hcalib);
+	ef->insertFrame(fh, &Hcalib); // insert new frame to Energy Functional
 
 	setPrecalcValues();
 
@@ -1126,7 +1173,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 	// =========================== Activate Points (& flag for marginalization). =========================
 	activatePointsMT();
-	ef->makeIDX();
+	ef->makeIDX(); // this set EFIndicesValid to true
 
 
 

@@ -508,23 +508,26 @@ double ImmaturePoint::linearizeResidual(
 			{tmpRes->state_NewState = ResState::OOB; return tmpRes->state_energy;}
 
 
-		Vec3f hitColor = (getInterpolatedElement33(dIl, Ku, Kv, wG[0]));
+		Vec3f hitColor = (getInterpolatedElement33(dIl, Ku, Kv, wG[0])); // this is the photometric information of the projected pixel on the target frame
 
 		if(!std::isfinite((float)hitColor[0])) {tmpRes->state_NewState = ResState::OOB; return tmpRes->state_energy;}
 		float residual = hitColor[0] - (affLL[0] * color[idx] + affLL[1]);
 
 		float hw = fabsf(residual) < setting_huberTH ? 1 : setting_huberTH / fabsf(residual);
-		energyLeft += weights[idx]*weights[idx]*hw *residual*residual*(2-hw);
+		energyLeft += weights[idx]*weights[idx]*hw *residual*residual*(2-hw); // this is the residual energy
 
 		// depth derivatives.
+		// todo review: this is different with the Jacobians in addPoint function because all variables except the idepth are assumed to be constant
 		float dxInterp = hitColor[1]*HCalib->fxl();
 		float dyInterp = hitColor[2]*HCalib->fyl();
 		float d_idepth = derive_idepth(PRE_tTll, u, v, dx, dy, dxInterp, dyInterp, drescale);
 
-		hw *= weights[idx]*weights[idx];
+        hw *= weights[idx]*weights[idx];
 
-		Hdd += (hw*d_idepth)*d_idepth;
-		bd += (hw*residual)*d_idepth;
+        Hdd += (hw*d_idepth)*d_idepth; // this is squared Jacobian of pixel coordinates v.s. idepth
+        bd += (hw*residual)*d_idepth;
+
+
 	}
 
 
