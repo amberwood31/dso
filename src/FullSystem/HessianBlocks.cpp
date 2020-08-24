@@ -38,7 +38,7 @@ PointHessian::PointHessian(const ImmaturePoint* const rawPoint, CalibHessian* Hc
 	host = rawPoint->host;
 	hasDepthPrior=false;
 
-	semantic_flag=0.0f; //initialization value, meaning semantic flag not determined yet
+	semantic_flag=rawPoint->semantic_flag; //get semantic flag from ImmaturePoint
 
 	idepth_hessian=0;
 	maxRelBaseline=0;

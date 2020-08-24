@@ -60,8 +60,7 @@ public:
 	float color[MAX_RES_PER_POINT];
 	float weights[MAX_RES_PER_POINT];
 
-
-
+    float semantic_flag;
 
 
 	Mat22f gradH;

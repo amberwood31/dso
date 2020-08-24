@@ -858,7 +858,7 @@ void FullSystem::setSemanticFlag() {
 
     // loop through all pointHessians and set the semantic flag
     for(FrameHessian* fh : frameHessians)
-        for(PointHessian* ph: fh->pointHessians)
+        for(ImmaturePoint* ph: fh->immaturePoints)
         {
             int x = int(ph->u);
             int y = int(ph->v);
@@ -903,17 +903,6 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 
 			coarseInitializer->setFirst(&Hcalib, fh);
 
-			{   // run planeNet here
-			    // todo should consider make this another thread
-                if (planeInitializer->detectPlane(image->image)){
-                    std::cout<< "planeNet successfully done" << std::endl;
-
-                    setSemanticFlag();
-
-                }
-
-
-            }
 		}
 		else if(coarseInitializer->trackFrame(fh, outputWrapper))	// if SNAPPED
 		{
@@ -1329,6 +1318,18 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 
 		Pnt* point = coarseInitializer->points[0]+i;
 		ImmaturePoint* pt = new ImmaturePoint(point->u+0.5f,point->v+0.5f,firstFrame,point->my_type, &Hcalib);
+
+        {   // listen to planeNet node here
+            // todo put ros subscribe topic into the if
+            if (0){
+                std::cout<< "planeNet successfully done" << std::endl;
+                // transform subscribed image into semanticMap
+                setSemanticFlag();
+
+            }
+
+
+        }
 
 		if(!std::isfinite(pt->energyTH)) { delete pt; continue; }
 
