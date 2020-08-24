@@ -78,7 +78,7 @@ public:
 	EFFrame* insertFrame(FrameHessian* fh, CalibHessian* Hcalib);
 	EFPoint* insertPoint(PointHessian* ph);
 
-	EFPlane* insertPlane(PlaneHessian* plh);
+	EFPlane* insertPlane(PlaneHessian* plh, PointHessian* ph); // pointHessian ph will be linked to the constructed EFPlane here
 
 	void dropResidual(EFResidual* r);
 	void dropPlaneResidual(EFResidual* r);

@@ -568,6 +568,8 @@ public:
     static int instanceCounter;
     EFPlane* efPlane;
 
+    Plane_S3* shell;
+
     bool flaggedForMarginalization;
 
     int idx;
@@ -595,11 +597,16 @@ public:
 
 
     void release();
-    PlaneHessian(const Plane* const rawPlane, CalibHessian* Hcalib, FrameHessian* host_fh){
+
+    // before constructing a planeHessian, a rawPlane need to be created first
+    PlaneHessian(Plane_S3 * rawPlane, CalibHessian* Hcalib, FrameHessian* host_fh){
         instanceCounter++;
         flaggedForMarginalization=false;
         efPlane =0;
         host = host_fh;
+
+        shell = rawPlane;
+        setEvalPT(rawPlane);
 
 
     };
@@ -613,8 +620,8 @@ public:
         t_m = t_m_param;
     };
 
-    inline void setEvalPT(const Plane_S3 & eval){
-        evalPT = eval;
+    inline void setEvalPT(const Plane_S3 * eval){
+        evalPT = *eval;
     };
 
 
@@ -638,6 +645,11 @@ public:
     inline void backupState(){
         state_backup = state;
     }
+
+    enum PlStatus {ACTIVE=0, INACTIVE, Pl_OUTLIER, Pl_OOB, MARGINALIZED};
+    PlStatus status;
+
+    inline void setPlaneStatus(PlStatus s) {status=s;}
 
 
     inline ~PlaneHessian() {assert(efPlane==0); release(); instanceCounter--;}
@@ -665,6 +677,7 @@ struct PointHessian
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 	static int instanceCounter;
 	EFPoint* efPoint;
+	EFPlane* efPlane;
 
 	// static values
 	float color[MAX_RES_PER_POINT];			// colors in host frame

@@ -270,6 +270,7 @@ private:
 
 	float* selectionMap;
 	float* semanticMap;
+	std::map<Vec2f, Vec4f, std::less<Vec2f>, Eigen::aligned_allocator<std::pair<const Vec2f, Vec4f>> > planeMap;
 	PixelSelector* pixelSelector;
 	CoarseDistanceMap* coarseDistanceMap;
 

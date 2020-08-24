@@ -664,17 +664,24 @@ void FullSystem::activatePointsMT()
 		{
 			newpoint->host->immaturePoints[ph->idxInImmaturePoints]=0;
 			newpoint->host->pointHessians.push_back(newpoint);
-			// todo how to make sure this newly constructed pointhessian also has semantic_flag?
+			// how to make sure this newly constructed pointhessian also has semantic_flag?
+			// Todo : pointHessian get semantic_flag from immaturePoint, the semantic_flag will be set in makeNewTraces
 			if (newpoint->semantic_flag == 0.5f){
                 ef->insertPoint(newpoint);
 			}
 			else if (newpoint->semantic_flag != 0.0f){
-			    ef->insertPlane()
+			    // access the plane parameter from planeMap, which should already been set in makeNewTraces
+			    Vec2f pixel_coord = Vec2f(newpoint->u, newpoint->v);
+			    // cannot create a local object rawPlane here, because it will go out of scope
+			    Plane_S3* rawPlane = new Plane_S3();
+			    rawPlane->set_normd(planeMap.at(pixel_coord));
+			    PlaneHessian* plh = new PlaneHessian(rawPlane, &Hcalib, newpoint->host);
+			    ef->insertPlane(plh, newpoint);
 			}
 
 			for(PointFrameResidual* r : newpoint->residuals)
 				ef->insertResidual(r);
-			assert(newpoint->efPoint != 0);
+			assert((newpoint->efPoint != 0) || (newpoint->efPlane !=0));
 			delete ph;
 		}
 		else if(newpoint == (PointHessian*)((long)(-1)) || ph->lastTraceStatus==IPS_OOB)
@@ -1312,6 +1319,8 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
         printf("Initialization: keep %.1f%% (need %d, have %d)!\n", 100*keepPercentage,
                 (int)(setting_desiredPointDensity), coarseInitializer->numPoints[0] );
 
+    //todo put a ros service call here to write into semanticMap and planeMap
+
 	for(int i=0;i<coarseInitializer->numPoints[0];i++)
 	{
 		if(rand()/(float)RAND_MAX > keepPercentage) continue;
@@ -1319,17 +1328,6 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 		Pnt* point = coarseInitializer->points[0]+i;
 		ImmaturePoint* pt = new ImmaturePoint(point->u+0.5f,point->v+0.5f,firstFrame,point->my_type, &Hcalib);
 
-        {   // listen to planeNet node here
-            // todo put ros subscribe topic into the if
-            if (0){
-                std::cout<< "planeNet successfully done" << std::endl;
-                // transform subscribed image into semanticMap
-                setSemanticFlag();
-
-            }
-
-
-        }
 
 		if(!std::isfinite(pt->energyTH)) { delete pt; continue; }
 
@@ -1338,6 +1336,35 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 		PointHessian* ph = new PointHessian(pt, &Hcalib);
 		delete pt;
 		if(!std::isfinite(ph->energyTH)) {delete ph; continue;}
+
+
+        {   // listen to planeNet node here
+            // todo put ros service call result boolean into the if
+            if (1){
+                std::cout<< "planeNet successfully done" << std::endl;
+
+                // transform subscribed image into semanticMap
+                // manual set instead of calling setSemanticFlag because it's already inside the loop here
+                int x = int(ph->u);
+                int y = int(ph->v);
+                int i = x + y*wG[0]; //todo review, whether this index is correct
+                ph->semantic_flag = semanticMap[i];
+
+                if ((ph->semantic_flag != 0.0f) && (ph->semantic_flag != 0.5f)){
+                    // access the normd plane parameter from planeMap, which should already been set
+                    Vec2f pixel_coord = Vec2f(ph->u, ph->v);
+                    Plane_S3* rawPlane = new Plane_S3();
+                    rawPlane->set_normd(planeMap.at(pixel_coord));
+                    PlaneHessian* plh = new PlaneHessian(rawPlane, &Hcalib, ph->host);
+                    plh->setPlaneStatus(PlaneHessian::ACTIVE);
+                    firstFrame->planeHessians.push_back(plh);
+                    ef->insertPlane(plh, ph);
+                }
+
+            }
+
+
+        }
 
 		ph->setIdepthScaled(point->iR*rescaleFactor);
 		ph->setIdepthZero(ph->idepth);
@@ -1348,16 +1375,8 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 		ef->insertPoint(ph);
 	}
 
-	for (int i=0;i<planeInitializer->numPlanes;i++)
-    {
-	    Plane* plane = planeInitializer->planes+i;
+	// todo so far point selection strategy is not changed, and only planes that have points being selected are added. Should I change the selection strategy to include more plane-related points, or check for planes with high confidence (if such thing exists from the plane detection network), and add the planes as well as its representative points here?
 
-        PlaneHessian* plh = new PlaneHessian(plane, &Hcalib, firstFrame);
-
-        firstFrame->planeHessians.push_back(plh);
-        ef->insertPlane(plh);
-
-    }
 
 
 

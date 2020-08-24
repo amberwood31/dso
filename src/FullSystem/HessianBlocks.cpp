@@ -61,6 +61,7 @@ PointHessian::PointHessian(const ImmaturePoint* const rawPoint, CalibHessian* Hc
 	energyTH = rawPoint->energyTH;
 
 	efPoint=0;
+	efPlane=0;
 
 
 }
